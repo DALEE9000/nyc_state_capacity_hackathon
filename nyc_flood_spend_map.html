@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NYC Flood Zone Capital Spend</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;height:100vh;display:flex;flex-direction:column}
+#top{padding:10px 16px;background:#1a1d2e;border-bottom:1px solid #2d3250;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{font-size:14px;font-weight:600;color:#f0f4ff}
+#status{font-size:11px;padding:3px 8px;border-radius:4px;background:#13162a;color:#f59e0b}
+#controls{margin-left:auto;display:flex;gap:8px;align-items:center}
+.tbtn{font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid;cursor:pointer;transition:.15s}
+#stats{display:flex;gap:20px;padding:7px 16px;background:#13162a;border-bottom:1px solid #1e2240;font-size:11px;flex-wrap:wrap}
+.s{display:flex;flex-direction:column;gap:1px}
+.sl{color:#5c6494;text-transform:uppercase;font-size:9px;letter-spacing:.05em}
+.sv{font-weight:600;color:#c7d2fe;font-size:12px}
+#log{font-size:10px;padding:5px 16px;background:#080a14;color:#4b5563;border-bottom:1px solid #1e2240;max-height:60px;overflow-y:auto;display:none}
+#map{flex:1}
+#overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(26,29,46,.95);border:1px solid #2d3250;border-radius:10px;padding:24px 32px;text-align:center;z-index:1000;display:none}
+#overlay.show{display:block}
+.spinner{width:32px;height:32px;border:3px solid #2d3250;border-top:3px solid #3b82f6;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.leaflet-popup-content-wrapper{background:#1a1d2e;color:#e2e8f0;border:1px solid #2d3250;border-radius:8px}
+.leaflet-popup-tip{background:#1a1d2e}
+.leaflet-popup-content{margin:10px 14px;font-size:12px}
+.pt{font-weight:600;font-size:13px;color:#f0f4ff;margin-bottom:5px}
+.pr{color:#94a3b8;margin-top:2px}.pr b{color:#c7d2fe}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;margin-top:5px}
+.legend{background:#1a1d2e!important;border:1px solid #2d3250;border-radius:8px;padding:10px 12px;font-size:11px;color:#94a3b8}
+.legend h4{color:#c7d2fe;font-size:11px;margin-bottom:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div id="top">
+  <h1>NYC Flood Zone Capital Spend</h1>
+  <div id="status">Initializing…</div>
+  <div id="controls">
+    <button class="tbtn" id="b1" style="border-color:#3b82f6;background:#3b82f6;color:#fff" onclick="tog('p',this)">● Capital Projects</button>
+    <button class="tbtn" id="b2" style="border-color:#f59e0b;background:#f59e0b;color:#111" onclick="tog('s',this)">● FloodNet Events</button>
+    <button class="tbtn" style="border-color:#4b5563;background:transparent;color:#9ca3af;font-size:10px" onclick="document.getElementById('log').style.display=document.getElementById('log').style.display==='none'?'block':'none'">Debug</button>
+  </div>
+</div>
+<div id="stats">
+  <div class="s"><div class="sl">CPDB Projects w/ Location</div><div class="sv" id="s1">—</div></div>
+  <div class="s"><div class="sl">Matched to Flood Zone (OMB)</div><div class="sv" id="s2">—</div></div>
+  <div class="s"><div class="sl">Total Spend in Flood Zones</div><div class="sv" id="s3">—</div></div>
+  <div class="s"><div class="sl">Flood-Aligned Spend</div><div class="sv" id="s4">—</div></div>
+  <div class="s"><div class="sl">Missed Opportunity</div><div class="sv" id="s5">—</div></div>
+  <div class="s"><div class="sl">FloodNet Sensors</div><div class="sv" id="s6">—</div></div>
+</div>
+<div id="log"></div>
+<div style="position:relative;flex:1;display:flex;flex-direction:column">
+  <div id="overlay" class="show"><div class="spinner" id="spinner"></div><div id="ol-msg" style="color:#c7d2fe;font-size:13px">Loading…</div><div id="ol-sub" style="color:#6b7280;font-size:11px;margin-top:4px"></div><div id="ol-err" style="display:none;margin-top:12px;padding:10px 14px;background:#1c0a0a;border:1px solid #7f1d1d;border-radius:6px;text-align:left;max-width:380px"><div style="color:#ef4444;font-size:11px;font-weight:600;margin-bottom:6px">Error details</div><div id="ol-err-msg" style="color:#fca5a5;font-size:10px;line-height:1.5;word-break:break-word"></div><div style="margin-top:10px;color:#6b7280;font-size:10px">If this is a network/CORS error, try serving locally:<br><code style="color:#a78bfa">python3 -m http.server 8080</code><br>then open <code style="color:#a78bfa">localhost:8080/nyc_flood_spend_map.html</code></div></div></div>
+  <div id="map" style="flex:1"></div>
+</div>
+
+<script>
+const L_MAP = L.map('map',{center:[40.72,-73.94],zoom:11,preferCanvas:true});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(L_MAP);
+
+const lg={p:L.layerGroup().addTo(L_MAP),s:L.layerGroup().addTo(L_MAP)};
+const vis={p:true,s:true};
+function tog(k,btn){
+  vis[k]=!vis[k];
+  if(vis[k]){L_MAP.addLayer(lg[k]);btn.style.opacity=1}
+  else{L_MAP.removeLayer(lg[k]);btn.style.opacity=.35}
+}
+
+const legend=L.control({position:'bottomright'});
+legend.onAdd=()=>{
+  const d=L.DomUtil.create('div','legend');
+  d.innerHTML=`<h4>Flood Resiliency (OMB)</h4>
+  <div><span class="dot" style="background:#10b981"></span>Aligned</div>
+  <div><span class="dot" style="background:#3b82f6"></span>Aligned Component</div>
+  <div><span class="dot" style="background:#ef4444"></span>Missed Opportunity</div>
+  <div><span class="dot" style="background:#a8a29e"></span>Pending / No Rating</div>
+  <div><span class="dot" style="background:#374151"></span>No Impact / No Match</div>
+  <div style="margin-top:7px;padding-top:7px;border-top:1px solid #2d3250">
+  <span class="dot" style="background:#f59e0b"></span>FloodNet Sensor<br>
+  <small style="color:#5c6494;margin-left:15px">Dot size = $ spend</small></div>`;
+  return d;
+};
+legend.addTo(L_MAP);
+
+const C={Aligned:'#10b981','Aligned Component':'#3b82f6','Missed Opportunity':'#ef4444','Pending Rating':'#a8a29e','Not Rated':'#6b7280','No Impact':'#374151','No Match':'#374151'};
+const BG={Aligned:'#064e3b','Aligned Component':'#1e3a5f','Missed Opportunity':'#7f1d1d','Pending Rating':'#292524','Not Rated':'#1f2937','No Impact':'#1f2937','No Match':'#111827'};
+
+const log=msg=>{const d=document.getElementById('log');d.style.display='block';d.innerHTML+=msg+'<br>';d.scrollTop=d.scrollHeight;console.log('[map]',msg)};
+const st=(msg,sub='')=>{document.getElementById('status').textContent=msg;document.getElementById('ol-msg').textContent=msg;document.getElementById('ol-sub').textContent=sub};
+function showErr(e){
+  document.getElementById('spinner').style.display='none';
+  document.getElementById('ol-msg').textContent='Error loading data';
+  document.getElementById('ol-sub').textContent='';
+  const eb=document.getElementById('ol-err');
+  document.getElementById('ol-err-msg').textContent=e.stack||e.message||String(e);
+  eb.style.display='block';
+  document.getElementById('status').textContent='❌ Error — see overlay';
+  console.error('[map error]',e);
+}
+const fmt=v=>v>=1000?`$${(v/1000).toFixed(1)}B`:v>=1?`$${v.toFixed(1)}M`:`$${(v*1000).toFixed(0)}K`;
+
+async function page(url,params,limit=5000){
+  const all=[];let off=0;
+  while(true){
+    const p=new URLSearchParams({...params,'$limit':limit,'$offset':off});
+    const r=await fetch(url+'?'+p);
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const b=await r.json();
+    all.push(...b);
+    log(`  fetched ${all.length} rows…`);
+    if(b.length<limit)break;
+    off+=limit;
+  }
+  return all;
+}
+
+async function main(){
+  try{
+    // 1. CPDB
+    st('Fetching capital projects…','CPDB (all NYC projects with geodata)');
+    log('→ CPDB fetch start');
+    const cpdb=await page('https://data.cityofnewyork.us/resource/h2ic-zdws.json',{
+      '$select':'maprojid,description,magencyacro,the_geom',
+      '$where':'the_geom IS NOT NULL'
+    });
+    log(`✓ CPDB: ${cpdb.length} geolocated projects`);
+
+    // 2. OMB
+    st('Fetching flood-zone budget data…','OMB (projects in flood-vulnerable areas)');
+    log('→ OMB fetch start');
+    const omb=await page('https://data.cityofnewyork.us/resource/c99a-c5ux.json',{
+      '$select':'project_id,project_description,flood_resiliency,flood_resiliency_tracking_category,fiscal_year_amount',
+      '$where':"flood_vulnerability_index='true'"
+    });
+    log(`✓ OMB: ${omb.length} flood-zone rows`);
+
+    // Aggregate OMB
+    const om={};
+    for(const r of omb){
+      const k=(r.project_id||'').replace(/\s+/g,'');
+      if(!om[k])om[k]={res:r.flood_resiliency,tr:r.flood_resiliency_tracking_category,desc:r.project_description,spend:0};
+      om[k].spend+=parseFloat(r.fiscal_year_amount)||0;
+    }
+    log(`✓ OMB: ${Object.keys(om).length} unique projects`);
+
+    // 3. FloodNet
+    st('Fetching FloodNet sensor events…','');
+    log('→ FloodNet fetch start');
+    const fn=await page('https://data.cityofnewyork.us/resource/aq7i-eu5q.json',{
+      '$select':'sensor_name,sensor_id,max_depth_inches'
+    });
+    const sensors={};
+    for(const r of fn){
+      if(!sensors[r.sensor_id])sensors[r.sensor_id]={name:r.sensor_name,events:0,max:0};
+      sensors[r.sensor_id].events++;
+      const d=parseFloat(r.max_depth_inches)||0;
+      if(d>sensors[r.sensor_id].max)sensors[r.sensor_id].max=d;
+    }
+    log(`✓ FloodNet: ${Object.keys(sensors).length} sensors, ${fn.length} events`);
+
+    // 4. Plot
+    st('Plotting…','');
+    let geoN=0,matchN=0,tot=0,aligned=0,missed=0;
+    const bounds=[];
+
+    for(const p of cpdb){
+      // the_geom is GeoJSON MultiPoint: coordinates is [[lng,lat], ...]
+      const coords=p.the_geom?.coordinates?.[0];
+      if(!coords)continue;
+      const lng=coords[0],lat=coords[1];
+      if(!lat||!lng||isNaN(lat)||isNaN(lng))continue;
+      geoN++;
+      const od=om[p.maprojid];
+      const res=od?(od.res||'Pending Rating'):'No Match';
+      const spend=od?od.spend/1000:0;
+      const color=C[res]||'#374151';
+      const radius=od&&spend>0?Math.max(5,Math.min(22,5+Math.sqrt(spend)*1.8)):4;
+      const opacity=od?0.85:0.4;
+      if(od){matchN++;tot+=spend;if(res==='Aligned'||res==='Aligned Component')aligned+=spend;if(res==='Missed Opportunity')missed+=spend;}
+      const c=L.circleMarker([lat,lng],{radius,fillColor:color,color:od?'rgba(255,255,255,.2)':'transparent',weight:1,fillOpacity:opacity});
+      const bg=BG[res]||'#111827';
+      const tr=od?.tr?`<div class="pr">Tracking: <b>${od.tr}</b></div>`:'';
+      c.bindPopup(`<div class="pt">${(od?.desc||p.description||p.maprojid||'').slice(0,70)}</div>
+        <div class="pr">ID: <b>${p.maprojid}</b> · Agency: <b>${p.magencyacro||'—'}</b></div>
+        <div class="pr">FY Spend: <b>${spend>0?fmt(spend):'No active spend'}</b></div>
+        ${tr}
+        <span class="badge" style="background:${bg};color:${color}">${res}</span>`);
+      lg.p.addLayer(c);
+      bounds.push([lat,lng]);
+    }
+    log(`✓ Plotted ${geoN} CPDB, ${matchN} matched to OMB`);
+
+    // FloodNet: sensor names encode NYC intersections; no lat/lon in this endpoint
+    // Geocode from sensor_name prefix: BK=Brooklyn, BX=Bronx, Q=Queens, SI=Staten Island, M=Manhattan
+    const BOROUGH_CENTER={BK:[40.65,-73.95],BX:[40.84,-73.87],Q:[40.72,-73.80],SI:[40.58,-74.15],M:[40.76,-73.98]};
+    for(const[id,s] of Object.entries(sensors)){
+      const prefix=id.split('-')[0].toUpperCase();
+      const bc=BOROUGH_CENTER[prefix];
+      if(!bc)continue;
+      // jitter slightly so they don't all stack
+      const lat=bc[0]+(Math.random()-.5)*.05;
+      const lng=bc[1]+(Math.random()-.5)*.05;
+      const c=L.circleMarker([lat,lng],{radius:5,fillColor:'#f59e0b',color:'#fff',weight:1,fillOpacity:.75});
+      c.bindPopup(`<div class="pt">${s.name}</div>
+        <div class="pr">Sensor ID: <b>${id}</b></div>
+        <div class="pr">Events recorded: <b>${s.events}</b></div>
+        <div class="pr">Max flood depth: <b>${s.max}" inches</b></div>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">⚠ Position is approximate (borough centroid). Exact lat/lon in FloodNet metadata attachment.</div>`);
+      lg.s.addLayer(c);
+    }
+
+    // Stats
+    document.getElementById('s1').textContent=geoN;
+    document.getElementById('s2').textContent=`${matchN} / ${geoN}`;
+    document.getElementById('s3').textContent=tot>0?fmt(tot):'$0';
+    document.getElementById('s4').textContent=aligned>0?fmt(aligned):'$0';
+    document.getElementById('s5').textContent=missed>0?fmt(missed):'$0';
+    document.getElementById('s6').textContent=`${Object.keys(sensors).length} sensors · ${fn.length} events`;
+
+    if(bounds.length)L_MAP.fitBounds(bounds,{padding:[40,40]});
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('status').textContent=`✓ ${matchN} matched · ${geoN} plotted`;
+
+    log(`=== DONE: ${matchN} joined, $${tot.toFixed(1)}M total, $${aligned.toFixed(1)}M flood-aligned ===`);
+
+  }catch(e){
+    log('ERROR: '+e.message);
+    showErr(e);
+  }
+}
+
+main();
+</script>
+</body>
+</html>
