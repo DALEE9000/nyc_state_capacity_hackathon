@@ -809,6 +809,8 @@ function buildStorm(S){
   SMAP=L.map("smap",{zoomControl:true,preferCanvas:true}).setView([40.70,-73.92],10.6);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     {subdomains:"abcd",maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(SMAP);
+  SMAP.createPane("sublines");           // faint subway route lines, beneath all markers
+  SMAP.getPane("sublines").style.zIndex=250;
   document.getElementById("storm-load").style.display="none";
 
   sMarkers=S.events.map(e=>{
@@ -946,6 +948,9 @@ function textOn(hex){ // black text on light line bullets, white on dark
 }
 function initTrains(){
   if(!TRAINS){document.getElementById("trainTog").closest(".train-tog").style.display="none";return;}
+  // faint static route geometry tracing each subway line
+  (TRAINS.lines||[]).forEach(o=>L.polyline(o.line,{pane:"sublines",color:o.c,
+    weight:1.6,opacity:.32,lineCap:"round",lineJoin:"round",interactive:false}).addTo(SMAP));
   trainBinw=TRAINS.meta.binw;
   trainTrips=TRAINS.trips.map(t=>({r:t.r,c:t.c,p:t.p,t0:t.p[0][0],t1:t.p[t.p.length-1][0]}));
   trainLayer=L.layerGroup().addTo(SMAP);

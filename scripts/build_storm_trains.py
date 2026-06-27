@@ -54,6 +54,31 @@ def downsample(pts, cap):
     return [pts[i] for i in idx]
 
 
+def rdp(pts, eps):
+    """Iterative Ramer-Douglas-Peucker polyline simplification (lat/lon degrees)."""
+    if len(pts) < 3:
+        return pts[:]
+    keep = [False]*len(pts); keep[0] = keep[-1] = True
+    stack = [(0, len(pts)-1)]
+    while stack:
+        a, b = stack.pop()
+        x1, y1 = pts[a]; x2, y2 = pts[b]
+        dx, dy = x2-x1, y2-y1
+        denom = (dx*dx + dy*dy) or 1e-12
+        dmax, idx = 0.0, -1
+        for i in range(a+1, b):
+            x0, y0 = pts[i]
+            t = ((x0-x1)*dx + (y0-y1)*dy)/denom
+            px, py = x1+t*dx, y1+t*dy
+            d = (x0-px)**2 + (y0-py)**2
+            if d > dmax:
+                dmax, idx = d, i
+        if dmax**0.5 > eps and idx != -1:
+            keep[idx] = True
+            stack.append((a, idx)); stack.append((idx, b))
+    return [pts[i] for i in range(len(pts)) if keep[i]]
+
+
 def main():
     if not GTFS.exists():
         import urllib.request
@@ -170,6 +195,25 @@ def main():
     ever = sorted({rn for d in disrupted for rn in d})
     route_colors = {rn: rcolor[rid] for rid, rn in rname.items()}
 
+    # ---- static route geometry (faint base lines) from shapes.txt ----
+    shapes = pd.read_csv(z.open("shapes.txt"), dtype=str)
+    shapes["seq"] = shapes["shape_pt_sequence"].astype(int)
+    wk_full = trips[trips["service_id"] == SERVICE]
+    shape_route = {}
+    for sid, rid in zip(wk_full["shape_id"], wk_full["route_id"]):
+        if isinstance(sid, str) and sid not in shape_route:
+            shape_route[sid] = rid
+    lines = []
+    for sid, g in shapes.groupby("shape_id", sort=False):
+        rid = shape_route.get(sid)
+        if rid is None:
+            continue
+        g = g.sort_values("seq")
+        pts = list(zip(g["shape_pt_lat"].astype(float), g["shape_pt_lon"].astype(float)))
+        simp = rdp(pts, 0.00022)            # ~25 m tolerance
+        lines.append({"r": rname.get(rid, "?"), "c": rcolor.get(rid, "#888"),
+                      "line": [[round(la, 5), round(lo, 5)] for la, lo in simp]})
+
     out = {
         "meta": {
             "window_sec": window, "binw": binw, "n_bins": n_bins,
@@ -179,6 +223,7 @@ def main():
             "disrupted_lines": ever,
         },
         "route_colors": route_colors,
+        "lines": lines,
         "trips": out_trips,
         "disrupted": disrupted,
     }
@@ -188,6 +233,7 @@ def main():
     import os
     print(f"Wrote {OUT.name} ({os.path.getsize(OUT)/1e6:.2f} MB)")
     print(f"trips animated: {len(out_trips):,}")
+    print(f"route lines: {len(lines)} ({sum(len(l['line']) for l in lines):,} points)")
     print(f"lines ever flagged as storm-affected: {', '.join(ever) or '(none)'}")
     peak_b = max(range(n_bins), key=lambda b: len(disrupted[b]))
     print(f"peak disrupted lines: {len(disrupted[peak_b])} at bin {peak_b} "

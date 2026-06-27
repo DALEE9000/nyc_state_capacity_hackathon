@@ -219,6 +219,9 @@ The storm tab also animates ~10,500 subway trains and flags lines disrupted by f
   instantiate the pattern across the service days the window spans (May 19–21), and keep trips
   overlapping the window. Each trip is downsampled to ≤ 12 `(time, lat, lon)` points; the frontend
   **linearly interpolates** position along the route as the storm clock advances.
+- **Route geometry.** The faint base lines tracing each route come from GTFS `shapes.txt` — 228
+  weekday line shapes, Ramer–Douglas–Peucker–simplified (~25 m tolerance) to ~8.5k points total,
+  drawn in each line's official color beneath the trains.
 - **Disruption flagging (flag-only, by design).** A line is flagged "affected" in a given moment when
   one of its stations is within **300 m** of a FloodNet sensor whose interpolated depth exceeds
   **12 inches** (track-level flooding) at that time. This **only flags** lines — affected trains pulse
