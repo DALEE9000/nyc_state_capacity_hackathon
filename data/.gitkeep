@@ -1,0 +1,7 @@
+# Place the raw NYC source CSVs here (gitignored). The build scripts in ../scripts read from this folder.
+# Required files:
+#   Capital_Projects_Database_(CPDB)_-_Projects_(Points)_20260624.csv
+#   NYC_Climate_Budgeting_Report__Climate_Alignment_Assessment_and_Capital_Climate_Investments_20260624.csv
+#   Community_Districts_20260624.csv
+#   FloodNet__Sensor_Deployment_Metadata_20260624.csv
+#   FloodNet__Street_Flooding_Events_Measured_by_FloodNet_Sensors_20260624.csv

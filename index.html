@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TIDELINE · NYC Flood-Resilience Capital Tracker</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#05080f; --bg2:#0a1120; --panel:rgba(17,26,46,.55); --panel-solid:#0e1730;
+  --line:rgba(90,140,200,.18); --line2:rgba(90,140,200,.35);
+  --txt:#e8f1ff; --muted:#8aa0c6; --dim:#5a7099;
+  --cyan:#22d3ee; --aligned:#2ee6a6; --not:#5a6b8c; --vuln:#ff5d8f; --amber:#ffd166;
+  --glow:0 0 24px rgba(34,211,238,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:
+    radial-gradient(1200px 700px at 78% -10%, rgba(34,211,238,.10), transparent 60%),
+    radial-gradient(900px 600px at -5% 110%, rgba(46,230,166,.08), transparent 55%),
+    var(--bg);
+  color:var(--txt); font-family:"Space Grotesk",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+body::before{ /* grid */
+  content:""; position:fixed; inset:0; pointer-events:none; opacity:.5;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:48px 48px; mask-image:radial-gradient(circle at 50% 35%,#000,transparent 85%);
+}
+.app{display:flex;flex-direction:column;height:100vh;position:relative;z-index:1}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:center;gap:18px;padding:18px 30px 14px}
+.logo{display:flex;align-items:center;gap:13px}
+.mark{width:38px;height:38px;border-radius:10px;position:relative;
+  background:linear-gradient(135deg,var(--cyan),var(--aligned));
+  box-shadow:var(--glow);}
+.mark::after{content:"";position:absolute;inset:7px;border-radius:6px;
+  border:2px solid rgba(5,8,15,.85);
+  background:repeating-linear-gradient(180deg,transparent 0 4px,rgba(5,8,15,.5) 4px 6px);}
+h1{font-size:21px;letter-spacing:.32em;margin:0;font-weight:700}
+.sub{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--cyan);
+  letter-spacing:.18em;margin-top:3px;text-transform:uppercase}
+.hgrow{flex:1}
+.snap{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--dim);text-align:right;line-height:1.7}
+.snap b{color:var(--muted);font-weight:500}
+.pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--aligned);
+  margin-right:6px;box-shadow:0 0 8px var(--aligned);animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ---------- tabs ---------- */
+nav{display:flex;gap:6px;padding:0 30px;border-bottom:1px solid var(--line)}
+.tab{appearance:none;border:0;background:none;color:var(--muted);cursor:pointer;
+  font-family:"JetBrains Mono",monospace;font-size:12.5px;letter-spacing:.12em;
+  padding:13px 20px;text-transform:uppercase;position:relative;transition:.2s}
+.tab .n{color:var(--dim);margin-right:8px}
+.tab:hover{color:var(--txt)}
+.tab.active{color:var(--cyan)}
+.tab.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;
+  background:linear-gradient(90deg,var(--cyan),var(--aligned));box-shadow:var(--glow)}
+
+/* ---------- panels ---------- */
+main{flex:1;position:relative;overflow:hidden}
+.panel{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .35s;
+  padding:24px 30px 26px;overflow:auto}
+.panel.show{opacity:1;visibility:visible}
+.panel.map{padding:0}
+
+/* map */
+#map{position:absolute;inset:0;background:var(--bg)}
+.leaflet-container{background:#060a13;font-family:inherit}
+.legend{position:absolute;left:22px;bottom:22px;z-index:500;background:var(--panel);
+  backdrop-filter:blur(14px);border:1px solid var(--line2);border-radius:14px;padding:14px 16px;
+  min-width:210px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.legend h4{margin:0 0 10px;font-size:11px;letter-spacing:.18em;color:var(--muted);
+  font-family:"JetBrains Mono",monospace;text-transform:uppercase}
+.legend .row{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--txt);margin:7px 0}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.legend .hint{margin-top:11px;padding-top:10px;border-top:1px solid var(--line);
+  font-size:11px;color:var(--dim);font-family:"JetBrains Mono",monospace}
+.sizescale{margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+.sizescale .ss-h{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;
+  color:var(--muted);margin-bottom:12px}
+.ss-row{display:flex;align-items:flex-end;gap:16px;padding:0 4px 4px}
+.ss-i{display:flex;flex-direction:column;align-items:center;gap:7px}
+.ss-b{display:block;border-radius:50%;background:rgba(34,211,238,.18);
+  border:1.5px solid var(--cyan);box-shadow:0 0 10px rgba(34,211,238,.3)}
+.ss-l{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--muted)}
+/* hover tooltip on map dots */
+.mtip{background:var(--panel-solid)!important;border:1px solid var(--line2)!important;
+  color:var(--txt)!important;font-family:"Space Grotesk",sans-serif!important;font-size:12px!important;
+  border-radius:9px!important;box-shadow:0 8px 30px rgba(0,0,0,.6)!important;padding:7px 11px!important;
+  max-width:240px!important}
+.mtip::before{border-top-color:var(--line2)!important}
+.map-title{position:absolute;left:22px;top:18px;z-index:500;font-family:"JetBrains Mono",monospace;
+  font-size:11px;letter-spacing:.16em;color:var(--muted);background:var(--panel);
+  border:1px solid var(--line2);padding:8px 13px;border-radius:10px;backdrop-filter:blur(14px)}
+.filter{position:absolute;right:22px;top:18px;z-index:500;display:flex;align-items:center;gap:12px;
+  background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:8px 12px;
+  backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.filter .flabel{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.18em;
+  color:var(--dim);text-transform:uppercase}
+.seg{display:flex;background:rgba(5,8,15,.6);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg-b{appearance:none;border:0;background:none;cursor:pointer;color:var(--muted);
+  font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.06em;
+  padding:6px 12px;border-radius:7px;transition:.18s}
+.seg-b:hover{color:var(--txt)}
+.seg-b.active{color:#05080f;background:linear-gradient(135deg,var(--cyan),var(--aligned));
+  box-shadow:0 0 16px rgba(34,211,238,.45);font-weight:700}
+.fcount{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--cyan);min-width:74px}
+.fcount b{color:var(--txt)}
+@media(max-width:760px){.filter .flabel,.fcount{display:none}}
+
+/* leaflet popup */
+.leaflet-popup-content-wrapper{background:var(--panel-solid);color:var(--txt);
+  border:1px solid var(--line2);border-radius:14px;box-shadow:0 14px 50px rgba(0,0,0,.6)}
+.leaflet-popup-tip{background:var(--panel-solid);border:1px solid var(--line2)}
+.leaflet-popup-content{margin:15px 17px;font-family:"Space Grotesk",sans-serif;line-height:1.45}
+.pop-name{font-weight:600;font-size:15px;margin-bottom:4px}
+.pop-ag{font-size:12px;color:var(--muted);margin-bottom:11px;font-family:"JetBrains Mono",monospace}
+.pop-spend{font-size:25px;font-weight:700;letter-spacing:-.5px}
+.pop-spend small{font-size:11px;color:var(--dim);font-weight:500;letter-spacing:.1em;
+  display:block;font-family:"JetBrains Mono",monospace;margin-bottom:2px}
+.badges{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
+.badge{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.08em;
+  padding:4px 9px;border-radius:20px;text-transform:uppercase}
+.b-al{background:rgba(46,230,166,.14);color:var(--aligned);border:1px solid rgba(46,230,166,.4)}
+.b-no{background:rgba(90,107,140,.14);color:#9fb1d0;border:1px solid rgba(90,107,140,.4)}
+.b-vu{background:rgba(255,93,143,.14);color:var(--vuln);border:1px solid rgba(255,93,143,.4)}
+.b-cat{background:rgba(34,211,238,.12);color:var(--cyan);border:1px solid rgba(34,211,238,.35)}
+
+/* ---------- stats ---------- */
+.lead{max-width:760px;margin-bottom:26px}
+.lead h2{font-size:13px;letter-spacing:.2em;color:var(--cyan);font-family:"JetBrains Mono",monospace;
+  text-transform:uppercase;margin:0 0 10px}
+.lead p{color:var(--muted);font-size:15px;line-height:1.6;margin:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+.card{background:var(--panel);backdrop-filter:blur(12px);border:1px solid var(--line);
+  border-radius:18px;padding:26px 24px;position:relative;overflow:hidden;transition:.25s}
+.card:hover{border-color:var(--line2);transform:translateY(-3px)}
+.card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--c1,var(--cyan)),transparent)}
+.card .lab{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.14em;
+  color:var(--muted);text-transform:uppercase}
+.card .val{font-size:46px;font-weight:700;letter-spacing:-1.5px;margin:14px 0 6px;
+  color:var(--c1,var(--txt));line-height:1;text-shadow:0 0 30px var(--g1,transparent)}
+.card .val small{font-size:22px;font-weight:600;color:var(--muted);margin-left:2px}
+.card .desc{font-size:13px;color:var(--dim);line-height:1.5}
+.card .ico{position:absolute;right:20px;top:22px;opacity:.5}
+
+/* ---------- breakdown ---------- */
+.bd-wrap{display:grid;grid-template-columns:1.35fr 1fr;gap:24px;height:100%}
+#p-breakdown .bd-wrap{height:auto}
+#p-breakdown .chart-box{height:430px}
+.sec-h{font-size:13px;letter-spacing:.2em;color:var(--cyan);font-family:"JetBrains Mono",monospace;
+  text-transform:uppercase;margin:30px 0 14px;padding-top:22px;border-top:1px solid var(--line)}
+@media(max-width:980px){.bd-wrap{grid-template-columns:1fr}}
+.chart-box{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 24px;
+  backdrop-filter:blur(12px);min-height:0;display:flex;flex-direction:column}
+.chart-box h3{margin:0 0 4px;font-size:16px;font-weight:600}
+.chart-box .cap{font-size:12px;color:var(--dim);margin-bottom:16px;font-family:"JetBrains Mono",monospace}
+.cwrap{position:relative;flex:1;min-height:340px}
+.rank{list-style:none;margin:0;padding:0;overflow:auto}
+.rank li{display:flex;align-items:baseline;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.rank .r{font-family:"JetBrains Mono",monospace;color:var(--dim);font-size:12px;width:22px;flex:none}
+.rank .nm{flex:1;font-size:14px}
+.rank .amt{font-family:"JetBrains Mono",monospace;color:var(--cyan);font-weight:500;font-size:13.5px}
+
+/* ---------- districts ---------- */
+.dist-wrap{display:grid;grid-template-columns:1.25fr .95fr;gap:20px;height:100%}
+@media(max-width:1000px){.dist-wrap{grid-template-columns:1fr;overflow:auto}}
+.dmap-box{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line);min-height:380px}
+#dmap{position:absolute;inset:0;background:#060a13}
+.dctrl{position:absolute;right:14px;top:14px;z-index:500;display:flex;align-items:center;gap:12px;
+  background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:8px 12px;
+  backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.sens-tog{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);
+  display:flex;align-items:center;gap:6px;cursor:pointer}
+.sens-tog input{accent-color:var(--cyan)}
+.dlegend{position:absolute;left:14px;bottom:14px;z-index:500;background:var(--panel);
+  border:1px solid var(--line2);border-radius:12px;padding:12px 14px;backdrop-filter:blur(14px);
+  font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);max-width:240px}
+.dlegend h4{margin:0 0 9px;font-size:10px;letter-spacing:.16em;color:var(--muted)}
+.dlegend .bar{height:9px;border-radius:5px;margin:6px 0 5px}
+.dlegend .ends{display:flex;justify-content:space-between;color:var(--dim);font-size:10px}
+.dlegend .lr{display:flex;align-items:center;gap:8px;margin-top:7px}
+.dlegend .sw{width:11px;height:11px;border-radius:50%;flex:none}
+.dist-side{display:flex;flex-direction:column;gap:16px;min-height:0}
+.insight{background:linear-gradient(135deg,rgba(255,93,143,.12),rgba(34,211,238,.06));
+  border:1px solid rgba(255,93,143,.3);border-radius:16px;padding:16px 18px}
+.insight .k{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.18em;
+  color:var(--vuln);text-transform:uppercase;margin-bottom:7px}
+.insight p{margin:0;font-size:14.5px;line-height:1.55;color:var(--txt)}
+.insight b{color:var(--vuln)}
+.drank{list-style:none;margin:0;padding:0;overflow:auto;flex:1;min-height:0}
+.drank li{padding:9px 4px;border-bottom:1px solid var(--line)}
+.drank .top{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.drank .nm{flex:1;font-weight:500}
+.drank .ev{font-family:"JetBrains Mono",monospace;color:var(--cyan);font-size:12px}
+.drank .st{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.06em;
+  padding:3px 7px;border-radius:20px;text-transform:uppercase}
+.st-underfunded{background:rgba(255,93,143,.16);color:var(--vuln);border:1px solid rgba(255,93,143,.4)}
+.st-balanced{background:rgba(255,209,102,.14);color:var(--amber);border:1px solid rgba(255,209,102,.4)}
+.st-funded{background:rgba(46,230,166,.14);color:var(--aligned);border:1px solid rgba(46,230,166,.4)}
+.st-no_data{background:rgba(90,107,140,.14);color:#9fb1d0;border:1px solid rgba(90,107,140,.35)}
+.drank .bars{display:flex;gap:5px;margin-top:7px;align-items:center}
+.drank .bwrap{flex:1;height:6px;background:rgba(90,140,200,.12);border-radius:4px;overflow:hidden}
+.drank .bfl{height:100%;background:linear-gradient(90deg,#22d3ee,#5d8cff)}
+.drank .bfu{height:100%;background:linear-gradient(90deg,#2ee6a6,#a6ffcf)}
+.drank .blab{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--dim);width:54px;text-align:right}
+.dist-pop .st{margin-top:8px;display:inline-block}
+
+/* ---------- storm ---------- */
+#smap{position:absolute;inset:0;background:#04070e}
+#rain{position:absolute;inset:0;z-index:450;pointer-events:none;opacity:.7}
+.storm-hud{position:absolute;left:22px;top:18px;z-index:500;background:var(--panel);
+  border:1px solid var(--line2);border-radius:14px;padding:14px 18px;backdrop-filter:blur(14px);
+  box-shadow:0 10px 40px rgba(0,0,0,.55)}
+.storm-date{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;color:var(--vuln)}
+.storm-clock{font-size:30px;font-weight:700;letter-spacing:.5px;margin:5px 0 7px;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(34,211,238,.4)}
+.storm-stats{display:flex;gap:18px;font-size:12px;color:var(--muted);font-family:"JetBrains Mono",monospace}
+.storm-stats b{color:var(--cyan);font-size:14px}
+.storm-stats span:last-child b{color:var(--vuln)}
+.storm-legend{position:absolute;right:22px;top:18px;z-index:500;background:var(--panel);
+  border:1px solid var(--line2);border-radius:12px;padding:12px 14px;backdrop-filter:blur(14px);
+  font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--muted);min-width:170px}
+.storm-legend h4{margin:0 0 8px;letter-spacing:.16em}
+.storm-legend .dscale{height:9px;border-radius:5px;
+  background:linear-gradient(90deg,#22d3ee,#5d8cff,#a06bff,#ff5d8f,#ff3b3b)}
+.storm-legend .ends{display:flex;justify-content:space-between;margin-top:4px;color:var(--dim)}
+.storm-ctrl{position:absolute;left:22px;right:22px;bottom:20px;z-index:500;display:flex;align-items:center;
+  gap:14px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:12px 16px;
+  backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(0,0,0,.55)}
+.play{appearance:none;border:1px solid var(--line2);cursor:pointer;color:#05080f;width:42px;height:42px;
+  border-radius:50%;font-size:15px;flex:none;background:linear-gradient(135deg,var(--cyan),var(--aligned));
+  box-shadow:0 0 18px rgba(34,211,238,.45);display:grid;place-content:center;transition:.15s}
+.play:hover{transform:scale(1.06)}
+.play.ghost{background:none;color:var(--muted);box-shadow:none}
+.tl-wrap{position:relative;flex:1;height:46px}
+#tlcanvas{position:absolute;inset:0;width:100%;height:100%}
+.tl-head{position:absolute;top:0;bottom:14px;width:2px;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);pointer-events:none;left:0}
+#tlrange{position:absolute;left:0;right:0;bottom:-2px;width:100%;margin:0;cursor:pointer;
+  -webkit-appearance:none;background:transparent;height:16px}
+#tlrange::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--cyan);box-shadow:0 0 10px var(--cyan);cursor:pointer}
+#tlrange::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--cyan)}
+
+.err{position:absolute;inset:0;display:none;place-content:center;text-align:center;padding:40px}
+.err.show{display:grid}
+.err code{display:block;margin-top:14px;color:var(--cyan);font-family:"JetBrains Mono",monospace;
+  background:var(--panel-solid);padding:12px 16px;border-radius:10px;border:1px solid var(--line2)}
+.loading{position:absolute;inset:0;display:grid;place-content:center;color:var(--dim);
+  font-family:"JetBrains Mono",monospace;letter-spacing:.2em}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:10px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="mark"></div>
+      <div>
+        <h1>TIDELINE</h1>
+        <div class="sub">NYC Flood-Resilience Capital Tracker</div>
+      </div>
+    </div>
+    <div class="hgrow"></div>
+    <div class="snap" id="snap"><span class="pulse"></span>live data</div>
+  </header>
+
+  <nav id="tabs">
+    <button class="tab active" data-p="map"><span class="n">01</span>Map</button>
+    <button class="tab" data-p="breakdown"><span class="n">02</span>The Stakes</button>
+    <button class="tab" data-p="districts"><span class="n">03</span>Districts</button>
+    <button class="tab" data-p="storm"><span class="n">04</span>May 20 Storm</button>
+  </nav>
+
+  <main>
+    <!-- MAP -->
+    <section class="panel map show" id="p-map">
+      <div id="map"></div>
+      <div class="map-title">EVERY GEOLOCATED CAPITAL PROJECT · TAP A DOT</div>
+      <div class="filter" id="filter">
+        <span class="flabel">Filter</span>
+        <div class="seg">
+          <button class="seg-b active" data-f="all">All</button>
+          <button class="seg-b" data-f="flood">Flood-related</button>
+          <button class="seg-b" data-f="nonflood">Not flood-related</button>
+        </div>
+        <span class="fcount" id="fcount"></span>
+      </div>
+      <div class="legend">
+        <h4>Flood-resilience status</h4>
+        <div class="row"><span class="dot" style="background:#2ee6a6;box-shadow:0 0 10px #2ee6a6"></span>Flood-aligned</div>
+        <div class="row"><span class="dot" style="background:#5a6b8c"></span>Not flood-aligned</div>
+        <div class="hint">◍ size &amp; brightness = committed spend</div>
+        <div class="sizescale" id="sizescale"></div>
+      </div>
+      <div class="loading" id="map-load">INITIALIZING MAP…</div>
+    </section>
+
+    <!-- STAKES + BREAKDOWN -->
+    <section class="panel" id="p-breakdown">
+      <div class="lead">
+        <h2>What's at stake</h2>
+        <p>New York is committing billions in capital funds to defend neighborhoods from flooding.
+           Here's where that money stands today — and how many projects sit in the city's most
+           flood-vulnerable ground.</p>
+      </div>
+      <div class="stats" id="stats"></div>
+      <h2 class="sec-h">Where the flood-resilience dollars go</h2>
+      <div class="bd-wrap">
+        <div class="chart-box">
+          <h3>Spend by category</h3>
+          <div class="cap">Total committed spend by flood-resilience category · USD</div>
+          <div class="cwrap"><canvas id="bchart"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <h3>Full ranking</h3>
+          <div class="cap">All tracked categories, highest first</div>
+          <ul class="rank" id="rank"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- DISTRICTS -->
+    <section class="panel" id="p-districts">
+      <div class="dist-wrap">
+        <div class="dmap-box">
+          <div id="dmap"></div>
+          <div class="dctrl">
+            <span class="flabel">Shade by</span>
+            <div class="seg">
+              <button class="seg-b active" data-m="gap">Funding gap</button>
+              <button class="seg-b" data-m="flood">Flooding</button>
+            </div>
+            <label class="sens-tog"><input type="checkbox" id="sensTog" checked> Sensors</label>
+          </div>
+          <div class="dlegend" id="dlegend"></div>
+        </div>
+        <div class="dist-side">
+          <div class="insight" id="insight"></div>
+          <div class="chart-box" style="flex:none">
+            <h3>Flooding vs. flood funding</h3>
+            <div class="cap">Each dot = a community district · lower-right = floods a lot, funded little</div>
+            <div class="cwrap" style="min-height:240px"><canvas id="dscatter"></canvas></div>
+          </div>
+          <div class="chart-box" style="flex:1;min-height:0">
+            <h3>Most flood-burdened districts</h3>
+            <div class="cap">Flooding events vs. flood-aligned $ · ranked by flooding</div>
+            <ul class="drank" id="drank"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STORM -->
+    <section class="panel map" id="p-storm">
+      <div id="smap"></div>
+      <canvas id="rain"></canvas>
+      <div class="storm-hud">
+        <div class="storm-date">MAY 20, 2026 · NYC FLASH-FLOOD EVENT</div>
+        <div class="storm-clock" id="sclock">--:--</div>
+        <div class="storm-stats">
+          <span><b id="s-active">0</b> sensors flooding</span>
+          <span><b id="s-depth">0"</b> deepest now</span>
+        </div>
+      </div>
+      <div class="storm-legend" id="storm-legend">
+        <h4>FLOOD DEPTH</h4>
+        <div class="dscale"></div>
+        <div class="ends"><span>0"</span><span>12"</span><span>24"+</span></div>
+      </div>
+      <div class="storm-ctrl">
+        <button class="play" id="splay" aria-label="play">▶</button>
+        <div class="tl-wrap">
+          <canvas id="tlcanvas"></canvas>
+          <div class="tl-head" id="tlhead"></div>
+          <input type="range" id="tlrange" min="0" max="1000" value="0" step="1">
+        </div>
+        <button class="play ghost" id="srestart" aria-label="restart">⟲</button>
+      </div>
+      <div class="loading" id="storm-load">LOADING STORM…</div>
+    </section>
+
+    <div class="err" id="err">
+      <div>
+        <div style="font-size:18px;font-weight:600">Couldn't load <b>dashboard_data.json</b></div>
+        <div style="color:var(--muted);margin-top:8px">Browsers block file access over <code style="all:unset;font-family:monospace;color:var(--cyan)">file://</code>. Serve the folder:</div>
+        <code>python -m http.server 8000 &nbsp;→&nbsp; open http://localhost:8000</code>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const fmtMoney = (k)=>{ // k = USD thousands
+  const d = k*1000;
+  if (Math.abs(d) >= 1e9) return "$"+(d/1e9).toFixed(2)+"B";
+  if (Math.abs(d) >= 1e6) return "$"+(d/1e6).toFixed(1)+"M";
+  if (Math.abs(d) >= 1e3) return "$"+(d/1e3).toFixed(0)+"K";
+  return "$"+Math.round(d);
+};
+// Fixed-unit money parts (suffix derived once from the target so it doesn't flicker)
+const moneyUnit = (k)=>{ const d=k*1000;
+  if(Math.abs(d)>=1e9) return {div:1e9,dp:2,suf:"B"};
+  if(Math.abs(d)>=1e6) return {div:1e6,dp:1,suf:"M"};
+  if(Math.abs(d)>=1e3) return {div:1e3,dp:0,suf:"K"};
+  return {div:1,dp:0,suf:""};
+};
+const fmtNum = n => n.toLocaleString("en-US");
+
+// tab switching (+ hash deep-linking, e.g. #breakdown)
+const panels = {map:"p-map",breakdown:"p-breakdown",districts:"p-districts",storm:"p-storm"};
+let MAP=null, DMAP=null, dInit=false, DISTRICTS=null, SMAP=null, sInit=false, STORM=null;
+function activate(p){
+  if(!panels[p]) p="map";
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.p===p));
+  Object.entries(panels).forEach(([k,id])=>document.getElementById(id).classList.toggle("show",k===p));
+  if(p==="map"&&MAP) setTimeout(()=>MAP.invalidateSize(),60);
+  if(p==="districts"&&DISTRICTS){ if(!dInit){dInit=true; buildDistricts(DISTRICTS);}
+    if(DMAP) setTimeout(()=>DMAP.invalidateSize(),60); }
+  if(p==="storm"&&STORM){ if(!sInit){sInit=true; buildStorm(STORM);}
+    if(SMAP) setTimeout(()=>{SMAP.invalidateSize(); drawTimeline();},60); }
+  if(history.replaceState) history.replaceState(null,"","#"+p);
+}
+document.getElementById("tabs").addEventListener("click",e=>{
+  const b=e.target.closest(".tab"); if(b) activate(b.dataset.p);
+});
+window.addEventListener("hashchange",()=>activate(location.hash.slice(1)));
+
+function countUp(el,target,unit){
+  const dur=1100,t0=performance.now();
+  const fmt=v=> unit ? (v*1000/unit.div).toFixed(unit.dp) : fmtNum(Math.round(v));
+  const step=(t)=>{
+    const p=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-p,3);
+    el.firstChild.nodeValue = fmt(target*e);
+    if(p<1) requestAnimationFrame(step); else el.firstChild.nodeValue = fmt(target);
+  };
+  requestAnimationFrame(step);
+}
+
+Promise.all([
+  fetch("dashboard_data.json").then(r=>{if(!r.ok)throw 0;return r.json()}),
+  fetch("district_data.json").then(r=>r.ok?r.json():null).catch(()=>null),
+  fetch("storm_data.json").then(r=>r.ok?r.json():null).catch(()=>null),
+]).then(([data,dist,storm])=>init(data,dist,storm))
+  .catch(()=>{document.getElementById("err").classList.add("show");
+    document.getElementById("map-load").style.display="none";});
+
+function init(data,dist,storm){
+  document.getElementById("snap").innerHTML =
+    `<span class="pulse"></span><b>${data.meta.financial_plan}</b> · ${data.meta.n_points.toLocaleString()} projects · ${data.meta.snapshot}`;
+  buildStats(data.headline);
+  buildMap(data.points);
+  buildBreakdown(data.breakdown);
+  DISTRICTS=dist; STORM=storm;
+  activate(location.hash.slice(1)||"map");
+}
+
+/* ---- stats ---- */
+function buildStats(h){
+  const cards=[
+    {lab:"Committed to flood-aligned projects",raw:h.flood_aligned_dollars_k,unit:moneyUnit(h.flood_aligned_dollars_k),
+     desc:"Capital dollars on projects rated Aligned for flood resilience.",
+     c:"var(--aligned)",g:"rgba(46,230,166,.45)",ico:"🌊"},
+    {lab:"Active capital projects",raw:h.active_projects,
+     desc:"Geolocated projects with funding in the current plan.",
+     c:"var(--cyan)",g:"rgba(34,211,238,.45)",ico:"🏗️"},
+    {lab:"Projects in flood-vulnerable zones",raw:h.flood_vulnerable_projects,
+     desc:"Sited in areas flagged by the city's Flood Vulnerability Index.",
+     c:"var(--vuln)",g:"rgba(255,93,143,.4)",ico:"⚠️"},
+    {lab:"Flood-aligned projects",raw:h.flood_aligned_projects,
+     desc:"Projects actively rated as advancing flood resilience.",
+     c:"var(--amber)",g:"rgba(255,209,102,.4)",ico:"✓"},
+  ];
+  const wrap=document.getElementById("stats");
+  wrap.innerHTML=cards.map(c=>`
+    <div class="card" style="--c1:${c.c};--g1:${c.g}">
+      <div class="ico" style="font-size:20px">${c.ico}</div>
+      <div class="lab">${c.lab}</div>
+      <div class="val">${c.unit?'<small>$</small>':''}<span class="cv">0</span>${c.unit?'<small>'+c.unit.suf+'</small>':''}</div>
+      <div class="desc">${c.desc}</div>
+    </div>`).join("");
+  [...wrap.querySelectorAll(".card")].forEach((card,i)=>{
+    const el=card.querySelector(".cv");
+    if(!el.firstChild) el.appendChild(document.createTextNode("0"));
+    countUp(el,cards[i].raw,cards[i].unit);
+  });
+}
+
+/* ---- map ---- */
+function buildMap(points){
+  MAP=L.map("map",{zoomControl:true,attributionControl:true,preferCanvas:true})
+       .setView([40.71,-73.95],11);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+    subdomains:"abcd",maxZoom:19,
+    attribution:'© OpenStreetMap © CARTO'}).addTo(MAP);
+  document.getElementById("map-load").style.display="none";
+
+  const maxSpend=Math.max(...points.map(p=>p.spend),1);
+  // dot radius scales with spend (sqrt -> area ~ dollars); wider range = stronger differential
+  const rad=s=>4+20*Math.sqrt(Math.max(s,0)/maxSpend);
+  // brighter fill for higher-funded projects -> a second visual channel for the differential
+  const fillOp=(s,base)=> base + 0.35*Math.sqrt(Math.max(s,0)/maxSpend);
+  // two layer groups so we can filter flood vs non-flood
+  const gFlood=L.layerGroup(), gNon=L.layerGroup();
+  let nFlood=0,nNon=0;
+  // smallest spend first so the big-money dots draw on top
+  points.sort((a,b)=> a.spend-b.spend);
+  for(const p of points){
+    const al=p.aligned;
+    al?nFlood++:nNon++;
+    const m=L.circleMarker([p.lat,p.lon],{
+      radius:rad(p.spend),
+      color: al?"#2ee6a6":"#8fa3c8",
+      weight: al?1.4:1,
+      fillColor: al?"#2ee6a6":"#5a6f96",
+      fillOpacity: fillOp(p.spend, al?.32:.28),
+      opacity: al?.9:.7,
+    });
+    m.bindTooltip(`${p.name} · <b style="color:#22d3ee">${fmtMoney(p.spend)}</b>`,
+      {direction:"top",offset:[0,-2],className:"mtip",opacity:1});
+    m.on("click",()=>m.bindPopup(popup(p),{maxWidth:300}).openPopup());
+    m.addTo(al?gFlood:gNon);
+  }
+  buildSizeScale(rad,maxSpend);
+  gFlood.addTo(MAP); gNon.addTo(MAP);
+
+  // filter wiring
+  const counts={all:nFlood+nNon,flood:nFlood,nonflood:nNon};
+  const fcount=document.getElementById("fcount");
+  function applyFilter(f){
+    if(f==="flood"||f==="all"){gFlood.addTo(MAP);}else{MAP.removeLayer(gFlood);}
+    if(f==="nonflood"||f==="all"){gNon.addTo(MAP);}else{MAP.removeLayer(gNon);}
+    fcount.innerHTML=`<b>${counts[f].toLocaleString()}</b> shown`;
+  }
+  function setFilter(f){
+    if(!counts[f]&&counts[f]!==0) f="all";
+    document.querySelectorAll(".seg-b").forEach(x=>x.classList.toggle("active",x.dataset.f===f));
+    applyFilter(f);
+  }
+  document.getElementById("filter").addEventListener("click",e=>{
+    const b=e.target.closest(".seg-b"); if(b) setFilter(b.dataset.f);
+  });
+  setFilter(new URLSearchParams(location.search).get("filter")||"all");
+}
+// Size-scale legend: reference bubbles sized by the same rad() the dots use.
+function buildSizeScale(rad,maxSpend){
+  const refs=[ Math.round(maxSpend*0.02), Math.round(maxSpend*0.2), Math.round(maxSpend) ];
+  const box=document.getElementById("sizescale");
+  box.innerHTML=`<div class="ss-h">FUNDING SCALE</div><div class="ss-row">`+
+    refs.map(s=>{const d=rad(s)*2;return `<span class="ss-i">
+      <span class="ss-b" style="width:${d}px;height:${d}px"></span>
+      <span class="ss-l">${fmtMoney(s)}</span></span>`;}).join("")+`</div>`;
+}
+function popup(p){
+  const badges=[
+    p.aligned?'<span class="badge b-al">Flood-aligned</span>':'<span class="badge b-no">Not aligned</span>',
+    p.vulnerable?'<span class="badge b-vu">Vulnerable zone</span>':'',
+    p.cat?`<span class="badge b-cat">${p.cat}</span>`:''
+  ].join("");
+  return `<div class="pop-name">${p.name}</div>
+    <div class="pop-ag">${p.agency}</div>
+    <div class="pop-spend"><small>TOTAL COMMITTED SPEND</small>${fmtMoney(p.spend)}</div>
+    <div class="badges">${badges}</div>`;
+}
+
+/* ---- breakdown ---- */
+function buildBreakdown(bd){
+  // ranking list
+  document.getElementById("rank").innerHTML = bd.map((b,i)=>`
+    <li><span class="r">${String(i+1).padStart(2,"0")}</span>
+        <span class="nm">${b.category}</span>
+        <span class="amt">${fmtMoney(b.spend)}</span></li>`).join("");
+  // chart (top 12 for readability)
+  const top=bd.slice(0,12);
+  const ctx=document.getElementById("bchart");
+  const grad=ctx.getContext("2d").createLinearGradient(0,0,ctx.width||600,0);
+  grad.addColorStop(0,"#22d3ee"); grad.addColorStop(1,"#2ee6a6");
+  new Chart(ctx,{
+    type:"bar",
+    data:{labels:top.map(b=>b.category),
+      datasets:[{data:top.map(b=>b.spend*1000),backgroundColor:grad,
+        borderRadius:6,barThickness:"flex",maxBarThickness:22}]},
+    options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>" "+fmtMoney(c.raw/1000)},
+          backgroundColor:"#0e1730",borderColor:"rgba(90,140,200,.35)",borderWidth:1,
+          titleColor:"#e8f1ff",bodyColor:"#22d3ee",padding:10,cornerRadius:8}},
+      scales:{
+        x:{ticks:{color:"#5a7099",font:{family:"JetBrains Mono",size:10},
+            callback:v=>"$"+(v/1e9).toFixed(1)+"B"},
+           grid:{color:"rgba(90,140,200,.1)"}},
+        y:{ticks:{color:"#c7d6f0",font:{family:"Space Grotesk",size:11.5}},
+           grid:{display:false}}}}
+  });
+}
+
+/* ---- districts: floodnet + funding adequacy ---- */
+const STATUS={underfunded:"#ff5d8f",balanced:"#ffd166",funded:"#2ee6a6",no_data:"#5a6b8c"};
+const STATUS_LBL={underfunded:"Underfunded",balanced:"Balanced",funded:"Well-funded",no_data:"No flood data"};
+function lerp(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t));}
+function rgba(c,al){return `rgba(${c[0]},${c[1]},${c[2]},${al})`;}
+function floodColor(need){ // dim blue -> bright cyan
+  const lo=[28,58,92], mid=[34,140,180], hi=[125,249,255];
+  const c = need<0.5 ? lerp(lo,mid,need/0.5) : lerp(mid,hi,(need-0.5)/0.5);
+  return rgba(c, 0.2+0.65*need);
+}
+function buildDistricts(D){
+  DMAP=L.map("dmap",{zoomControl:true,preferCanvas:false}).setView([40.70,-73.92],10.4);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    {subdomains:"abcd",maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(DMAP);
+
+  const feats=D.geojson.features;
+  const maxEv=Math.max(...feats.map(f=>f.properties.flood_events),1);
+  let mode="gap";
+  const styleFor=p=>{
+    if(mode==="flood"){
+      const need=p.flood_events/maxEv;
+      return {color:"#3a5170",weight:.8,fillColor:floodColor(need),
+        fillOpacity:p.flood_events?0.85:0.06};
+    }
+    const c=STATUS[p.status];
+    const op = p.status==="no_data"?0.05:0.25+0.55*p.need;
+    return {color:rgba([255,255,255],.12),weight:.8,fillColor:c,fillOpacity:op};
+  };
+  const layer=L.geoJSON(D.geojson,{
+    style:f=>styleFor(f.properties),
+    onEachFeature:(f,lyr)=>{
+      const p=f.properties;
+      lyr.on("mouseover",()=>lyr.setStyle({weight:2,color:"#22d3ee"}));
+      lyr.on("mouseout",()=>lyr.setStyle({weight:.8,color:mode==="flood"?"#3a5170":rgba([255,255,255],.12)}));
+      lyr.bindPopup(distPopup(p),{maxWidth:280});
+    }
+  }).addTo(DMAP);
+
+  // FloodNet sensors
+  const sLayer=L.layerGroup();
+  D.sensors.forEach(s=>{
+    L.circleMarker([s.lat,s.lon],{radius:2.6,color:"#ffd166",weight:0,
+      fillColor:"#ffd166",fillOpacity:.85})
+     .bindTooltip(`📡 ${s.name}`,{className:"mtip",direction:"top"}).addTo(sLayer);
+  });
+  sLayer.addTo(DMAP);
+  document.getElementById("sensTog").addEventListener("change",e=>{
+    e.target.checked?sLayer.addTo(DMAP):DMAP.removeLayer(sLayer);
+  });
+
+  function applyMode(m){
+    mode=m;
+    document.querySelectorAll("#p-districts .dctrl .seg-b")
+      .forEach(b=>b.classList.toggle("active",b.dataset.m===m));
+    layer.setStyle(f=>styleFor(f.properties));
+    drawLegend(m,maxEv);
+  }
+  document.querySelector("#p-districts .dctrl").addEventListener("click",e=>{
+    const b=e.target.closest(".seg-b"); if(b) applyMode(b.dataset.m);
+  });
+  applyMode("gap");
+
+  buildInsight(D.districts);
+  buildScatter(D.districts);
+  buildDrank(D.districts);
+}
+function drawLegend(mode,maxEv){
+  const el=document.getElementById("dlegend");
+  if(mode==="flood"){
+    el.innerHTML=`<h4>STREET-FLOODING EVENTS</h4>
+      <div class="bar" style="background:linear-gradient(90deg,${floodColor(0.05)},${floodColor(.5)},${floodColor(1)})"></div>
+      <div class="ends"><span>0</span><span>${maxEv}</span></div>
+      <div class="lr"><span class="sw" style="background:#ffd166"></span>FloodNet sensor</div>`;
+  }else{
+    el.innerHTML=`<h4>FLOOD FUNDING vs. BURDEN</h4>`+
+      ["underfunded","balanced","funded","no_data"].map(s=>
+        `<div class="lr"><span class="sw" style="background:${STATUS[s]}"></span>${STATUS_LBL[s]}</div>`).join("")+
+      `<div class="ends" style="margin-top:7px">shade = flooding intensity</div>`;
+  }
+}
+function distPopup(p){
+  return `<div class="dist-pop"><div class="pop-name">${p.name}</div>
+    <div class="pop-ag">${p.sensors} FloodNet sensor${p.sensors==1?"":"s"} · ${p.n_projects} capital projects</div>
+    <div style="display:flex;gap:18px;margin:6px 0">
+      <div><div class="pop-spend" style="font-size:21px">${p.flood_events}<small>FLOOD EVENTS</small></div></div>
+      <div><div class="pop-spend" style="font-size:21px;color:#2ee6a6">${fmtMoney(p.flood_aligned_k)}<small>FLOOD $ ALIGNED</small></div></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted)">${p.severe_events} severe (&gt;12in) · avg peak ${p.max_depth_avg||0}in</div>
+    <span class="st st-${p.status}">${STATUS_LBL[p.status]}</span></div>`;
+}
+function buildInsight(ds){
+  const flooded=ds.filter(d=>d.flood_events>0);
+  const under=flooded.filter(d=>d.status==="underfunded").sort((a,b)=>a.gap-b.gap).slice(0,3);
+  const topFund=flooded.slice().sort((a,b)=>b.flood_aligned_k-a.flood_aligned_k)[0];
+  const names=under.map(d=>d.name).join(", ").replace(/, ([^,]*)$/," and $1");
+  document.getElementById("insight").innerHTML=
+    `<div class="k">⚠ Funding equity gap</div>
+     <p><b>${names}</b> record the most street flooding in the city — yet each gets far less
+     flood-resilience funding than districts like <b style="color:#2ee6a6">${topFund.name}</b>
+     (${fmtMoney(topFund.flood_aligned_k)}), which floods less. ${under.length} high-flood districts look under-funded.</p>`;
+}
+function buildScatter(ds){
+  const pts=ds.filter(d=>d.flood_events>0||d.flood_aligned_k>0);
+  const data=pts.map(d=>({x:d.flood_events,y:d.flood_aligned_k*1000,d}));
+  new Chart(document.getElementById("dscatter"),{
+    type:"scatter",
+    data:{datasets:[{data,pointRadius:6,pointHoverRadius:9,
+      backgroundColor:data.map(o=>rgba(hexRgb(STATUS[o.d.status]),.8)),
+      borderColor:"rgba(5,8,15,.6)",borderWidth:1}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>{const d=c.raw.d;
+          return [` ${d.name}`,` ${d.flood_events} flood events`,` ${fmtMoney(d.flood_aligned_k)} flood-aligned`];}},
+          backgroundColor:"#0e1730",borderColor:"rgba(90,140,200,.35)",borderWidth:1,
+          titleColor:"#e8f1ff",bodyColor:"#c7d6f0",padding:10,cornerRadius:8}},
+      scales:{
+        x:{title:{display:true,text:"Street-flooding events →",color:"#8aa0c6",
+            font:{family:"JetBrains Mono",size:10}},
+           ticks:{color:"#5a7099",font:{family:"JetBrains Mono",size:10}},
+           grid:{color:"rgba(90,140,200,.1)"}},
+        y:{title:{display:true,text:"Flood-aligned funding →",color:"#8aa0c6",
+            font:{family:"JetBrains Mono",size:10}},
+           ticks:{color:"#5a7099",font:{family:"JetBrains Mono",size:10},
+             callback:v=>v>=1e9?"$"+(v/1e9).toFixed(1)+"B":"$"+(v/1e6).toFixed(0)+"M"},
+           grid:{color:"rgba(90,140,200,.1)"}}}}
+  });
+}
+function hexRgb(h){const n=parseInt(h.slice(1),16);return [(n>>16)&255,(n>>8)&255,n&255];}
+function buildDrank(ds){
+  const top=ds.filter(d=>d.flood_events>0).slice(0,15);
+  const maxEv=Math.max(...top.map(d=>d.flood_events),1);
+  const maxFu=Math.max(...ds.map(d=>d.flood_aligned_k),1);
+  document.getElementById("drank").innerHTML=top.map(d=>`
+    <li>
+      <div class="top">
+        <span class="nm">${d.name}</span>
+        <span class="ev">${d.flood_events} events</span>
+        <span class="st st-${d.status}">${STATUS_LBL[d.status]}</span>
+      </div>
+      <div class="bars">
+        <span class="blab">flood</span>
+        <span class="bwrap"><span class="bfl" style="width:${100*d.flood_events/maxEv}%"></span></span>
+      </div>
+      <div class="bars">
+        <span class="blab">$ ${fmtMoney(d.flood_aligned_k).replace('$','')}</span>
+        <span class="bwrap"><span class="bfu" style="width:${100*d.flood_aligned_k/maxFu}%"></span></span>
+      </div>
+    </li>`).join("");
+}
+
+/* ---- May 20 storm animation ---- */
+let sClock=0, sPlaying=false, sRAF=null, sLast=0, sMarkers=[], sWindow=1, sStartMs=0, PLAY_SECS=30;
+function depthColor(d){ // inches -> color
+  if(d>=24) return "#ff3b3b";
+  if(d>=12) return "#ff5d8f";
+  if(d>=6)  return "#a06bff";
+  if(d>=3)  return "#5d8cff";
+  return "#22d3ee";
+}
+function interpDepth(e,clk){
+  const local=clk-e.t;
+  if(local<0||local>e.dur) return 0;
+  const s=e.s;
+  for(let i=0;i<s.length-1;i++){
+    if(s[i][0]<=local&&local<=s[i+1][0]){
+      const[t1,d1]=s[i],[t2,d2]=s[i+1];
+      return d1+(d2-d1)*((local-t1)/((t2-t1)||1));
+    }
+  }
+  return local>=s[s.length-1][0]?s[s.length-1][1]:s[0][1];
+}
+function buildStorm(S){
+  sWindow=S.meta.window_sec;
+  sStartMs=Date.parse(S.meta.start_gmt.replace(" GMT","Z").replace(" ","T"));
+  SMAP=L.map("smap",{zoomControl:true,preferCanvas:true}).setView([40.70,-73.92],10.6);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    {subdomains:"abcd",maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(SMAP);
+  document.getElementById("storm-load").style.display="none";
+
+  sMarkers=S.events.map(e=>{
+    const m=L.circleMarker([e.lat,e.lon],{radius:0,weight:1,color:"#fff",
+      fillColor:"#22d3ee",fillOpacity:0,opacity:0});
+    m.bindTooltip(()=>`${e.name} · ${Math.round(m._curD)}" deep`,{className:"mtip",direction:"top"});
+    m._e=e; m._curD=0; m.addTo(SMAP);
+    return m;
+  });
+
+  // timeline curve + rain
+  drawTimeline();
+  initRain();
+  window.addEventListener("resize",()=>{if(document.getElementById("p-storm").classList.contains("show"))drawTimeline();});
+
+  document.getElementById("splay").addEventListener("click",togglePlay);
+  document.getElementById("srestart").addEventListener("click",()=>{sClock=0;renderStorm();updateRange();});
+  const range=document.getElementById("tlrange");
+  range.addEventListener("input",()=>{ pause(); sClock=sWindow*range.value/1000; renderStorm(); });
+
+  const st=parseFloat(new URLSearchParams(location.search).get("st"));
+  sClock=(st>=0&&st<=1)?sWindow*st:0;
+  renderStorm(); updateRange();
+}
+function fmtClock(){
+  const d=new Date(sStartMs+sClock*1000);
+  const days=Math.floor(sClock/86400);
+  const hh=String(d.getUTCHours()).padStart(2,"0"), mm=String(d.getUTCMinutes()).padStart(2,"0");
+  return `${hh}:${mm}`+(days>0?` +${days}d`:"")+" GMT";
+}
+function renderStorm(){
+  let active=0,maxd=0;
+  for(const m of sMarkers){
+    const d=interpDepth(m._e,sClock);
+    m._curD=d;
+    if(d>0.3){
+      active++; if(d>maxd)maxd=d;
+      m.setStyle({fillColor:depthColor(d),fillOpacity:.55,opacity:.85});
+      m.setRadius(4+Math.min(d,30)*0.85);
+    }else{
+      m.setStyle({fillOpacity:0,opacity:0}); m.setRadius(0);
+    }
+  }
+  document.getElementById("sclock").textContent=fmtClock();
+  document.getElementById("s-active").textContent=active;
+  document.getElementById("s-depth").textContent=Math.round(maxd)+'"';
+  positionHead();
+}
+function updateRange(){document.getElementById("tlrange").value=Math.round(1000*sClock/sWindow);}
+function positionHead(){
+  const wrap=document.querySelector(".tl-wrap"); if(!wrap)return;
+  document.getElementById("tlhead").style.left=(100*sClock/sWindow)+"%";
+}
+function togglePlay(){ sPlaying?pause():play(); }
+function play(){
+  if(sClock>=sWindow) sClock=0;
+  sPlaying=true; document.getElementById("splay").textContent="❚❚";
+  sLast=performance.now(); sRAF=requestAnimationFrame(tick);
+}
+function pause(){ sPlaying=false; document.getElementById("splay").textContent="▶";
+  if(sRAF)cancelAnimationFrame(sRAF); }
+function tick(now){
+  if(!sPlaying)return;
+  const dt=(now-sLast)/1000; sLast=now;
+  sClock+=dt*(sWindow/PLAY_SECS);
+  if(sClock>=sWindow){ sClock=sWindow; renderStorm(); updateRange(); pause(); return; }
+  renderStorm(); updateRange();
+  sRAF=requestAnimationFrame(tick);
+}
+function drawTimeline(){
+  const cv=document.getElementById("tlcanvas"); if(!cv||!STORM)return;
+  const w=cv.clientWidth||cv.offsetWidth, h=cv.clientHeight||46;
+  cv.width=w*devicePixelRatio; cv.height=h*devicePixelRatio;
+  const ctx=cv.getContext("2d"); ctx.scale(devicePixelRatio,devicePixelRatio);
+  ctx.clearRect(0,0,w,h);
+  const a=STORM.timeline.active, n=a.length, mx=Math.max(...a,1);
+  const bw=w/n;
+  for(let i=0;i<n;i++){
+    const bh=(a[i]/mx)*(h-16);
+    const grad=ctx.createLinearGradient(0,h,0,h-bh);
+    grad.addColorStop(0,"rgba(34,211,238,.25)"); grad.addColorStop(1,"rgba(255,93,143,.9)");
+    ctx.fillStyle=a[i]?grad:"rgba(90,140,200,.12)";
+    ctx.fillRect(i*bw,h-14-bh,Math.max(bw-0.5,1),bh);
+  }
+  positionHead();
+}
+
+/* ---- rain: density & speed track the storm's current intensity ---- */
+let rainDrops=[], rainRAF=null; const RAIN_MAX=460, DPR=window.devicePixelRatio||1;
+function mkDrop(cv,init){
+  return {x:Math.random()*cv.width,
+          y:init?Math.random()*cv.height:-30*DPR,
+          len:(8+Math.random()*18)*DPR,
+          sp:(7+Math.random()*9)*DPR,
+          w:(0.4+Math.random()*1.1)*DPR};
+}
+function stormIntensity(){
+  if(!STORM) return .3;
+  const tl=STORM.timeline, bin=Math.min(tl.active.length-1,Math.max(0,Math.floor(sClock/tl.binw)));
+  return Math.max(.12,(tl.active[bin]||0)/(STORM.meta.peak_active||1));
+}
+function initRain(){
+  const cv=document.getElementById("rain"), p=document.getElementById("p-storm");
+  const size=()=>{cv.width=p.clientWidth*DPR; cv.height=p.clientHeight*DPR;};
+  size(); window.addEventListener("resize",size);
+  rainDrops=Array.from({length:RAIN_MAX},()=>mkDrop(cv,true));
+  if(!rainRAF) rainRAF=requestAnimationFrame(rainTick);
+}
+function rainTick(){
+  rainRAF=requestAnimationFrame(rainTick);
+  const cv=document.getElementById("rain"); if(!cv)return;
+  const ctx=cv.getContext("2d"); ctx.clearRect(0,0,cv.width,cv.height);
+  if(!document.getElementById("p-storm").classList.contains("show")) return;
+  const intens=stormIntensity();
+  const n=Math.floor(50+intens*(RAIN_MAX-50));
+  const wind=(2+intens*5)*DPR;
+  ctx.lineCap="round";
+  for(let i=0;i<n;i++){
+    const d=rainDrops[i];
+    ctx.strokeStyle=`rgba(170,220,255,${0.22+0.5*(d.sp/(16*DPR))})`;
+    ctx.lineWidth=d.w;
+    ctx.beginPath(); ctx.moveTo(d.x,d.y); ctx.lineTo(d.x-wind,d.y+d.len); ctx.stroke();
+    d.y+=d.sp*(0.55+intens); d.x-=wind*0.35;
+    if(d.y>cv.height||d.x<-40*DPR) Object.assign(d,mkDrop(cv,false));
+  }
+}
+</script>
+</body>
+</html>

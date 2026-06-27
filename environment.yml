@@ -1,0 +1,15 @@
+name: nyc_climate
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pandas
+  - numpy
+  - matplotlib
+  - seaborn
+  - jupyterlab
+  - ipykernel
+  - pyarrow
+  - folium
+  - plotly
+  - shapely
