@@ -40,6 +40,8 @@ All inputs are open NYC datasets, snapshotted 2026-06-24:
    per-event depth time series). *Provides the flooding burden + the storm animation.*
 6. **MTA Subway GTFS (static)** — the scheduled subway timetable, routes, shapes, and stops.
    *Drives the animated subway trains in the storm tab.* (Downloaded to `data/gtfs_subway.zip`.)
+7. **MTA Bus GTFS (static, 6 borough/operator feeds)** — scheduled bus timetables and stops.
+   *Drives the animated buses in the storm tab.* (Downloaded to `data/gtfs_bus_*.zip`.)
 
 ---
 
@@ -53,12 +55,14 @@ paths to the repo root, so they work from any working directory.
 scripts/build_dashboard_data.py   ->  dashboard_data.json   (project points, headline, breakdown)
 scripts/build_district_data.py    ->  district_data.json    (district polygons + flood/funding stats)
 scripts/build_storm_data.py       ->  storm_data.json       (May 20 2026 animated flood event)
-scripts/build_storm_trains.py     ->  storm_trains.json     (subway trains + storm line-disruption flags)
+scripts/build_storm_trains.py     ->  storm_trains.json     (subway trains + routes + storm flags)
+scripts/build_storm_buses.py      ->  storm_buses.json      (buses + storm bus-route flags)
 scripts/build_climate_budget_geolocated.py -> data/climate_budget_geolocated.csv  (flat geolocated CSV, standalone)
 ```
 
-`build_storm_trains.py` reads `storm_data.json`, so run it after `build_storm_data.py`. It will
-auto-download the MTA GTFS to `data/gtfs_subway.zip` if missing.
+`build_storm_trains.py` / `build_storm_buses.py` read `storm_data.json`, so run them after
+`build_storm_data.py`. They auto-download the MTA GTFS to `data/gtfs_subway.zip` and
+`data/gtfs_bus_*.zip` if missing.
 
 First put the five raw NYC CSVs in `data/` (they're gitignored — see `data/.gitkeep` for the list),
 then from the repo root:
@@ -67,7 +71,8 @@ then from the repo root:
 python scripts/build_dashboard_data.py
 python scripts/build_district_data.py
 python scripts/build_storm_data.py
-python scripts/build_storm_trains.py   # auto-downloads MTA GTFS to data/ if missing
+python scripts/build_storm_trains.py   # auto-downloads MTA subway GTFS to data/ if missing
+python scripts/build_storm_buses.py    # auto-downloads MTA bus GTFS (6 feeds) to data/ if missing
 python -m http.server 8000          # then open http://localhost:8000
 ```
 
@@ -222,6 +227,21 @@ The storm tab also animates ~10,500 subway trains and flags lines disrupted by f
 - **Route geometry.** The faint base lines tracing each route come from GTFS `shapes.txt` — 228
   weekday line shapes, Ramer–Douglas–Peucker–simplified (~25 m tolerance) to ~8.5k points total,
   drawn in each line's official color beneath the trains.
+
+### 6c. Buses (`build_storm_buses.py` → `storm_buses.json`)
+
+Same approach and same caveat as the trains, for all six MTA bus GTFS feeds (5 boroughs + MTA Bus
+Company). Bus GTFS uses depot-prefixed weekday service IDs with school-day variants, which we
+**de-duplicate** (collapsing `-SDon`/`-SDoff` and preferring school-day-on, since May 20 is a school
+day) before applying the weekday pattern to that date. Citywide weekday bus service is enormous
+(~65k trip-instances over the window), so trips are **thinned to ~11,000** (random sample, fixed
+seed) to keep the file (~2.5 MB) and the in-browser animation manageable. Affected bus routes use the
+same proximity rule (a stop within 300 m of a sensor flooding >12 in); **33 routes** get flagged over
+the event, up to **26 at once**, and their **specific route names** are listed in the Service-alert
+panel (affected buses also turn red on the map).
+
+**Storm-tab UI controls:** independent **Subway / Buses** toggles (the subway toggle also hides the
+route lines), and a **playback-speed** control (0.5× / 1× / 2× / 4×).
 - **Disruption flagging (flag-only, by design).** A line is flagged "affected" in a given moment when
   one of its stations is within **300 m** of a FloodNet sensor whose interpolated depth exceeds
   **12 inches** (track-level flooding) at that time. This **only flags** lines — affected trains pulse
@@ -239,7 +259,8 @@ index.html                  The dashboard (serve over HTTP)
 dashboard_data.json         Project points, headline numbers, category breakdown   (committed)
 district_data.json          District polygons + flooding/funding stats             (committed)
 storm_data.json             May 20 2026 animated flood event                       (committed)
-storm_trains.json           Subway trains + storm line-disruption flags            (committed, ~3.4 MB)
+storm_trains.json           Subway trains + route geometry + storm flags           (committed, ~3.6 MB)
+storm_buses.json            Buses + storm bus-route flags                          (committed, ~2.5 MB)
 README.md  environment.yml  .gitignore
 
 scripts/                    Build pipeline (run from repo root)
@@ -247,6 +268,7 @@ scripts/                    Build pipeline (run from repo root)
   build_district_data.py              -> district_data.json   (flood-vs-funding analysis)
   build_storm_data.py                 -> storm_data.json
   build_storm_trains.py               -> storm_trains.json    (MTA GTFS subway animation)
+  build_storm_buses.py                -> storm_buses.json     (MTA GTFS bus animation)
   build_climate_budget_geolocated.py  -> data/climate_budget_geolocated.csv (standalone flat export)
 
 notebooks/                  Exploratory notebooks (incl. a Plotly map in the budget notebook)
