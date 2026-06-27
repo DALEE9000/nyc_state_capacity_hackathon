@@ -5,3 +5,6 @@
 #   Community_Districts_20260624.csv
 #   FloodNet__Sensor_Deployment_Metadata_20260624.csv
 #   FloodNet__Street_Flooding_Events_Measured_by_FloodNet_Sensors_20260624.csv
+#
+# build_storm_trains.py also uses the MTA static subway GTFS here:
+#   gtfs_subway.zip   (auto-downloaded from http://web.mta.info/developers/data/nyct/subway/google_transit.zip)

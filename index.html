@@ -240,6 +240,22 @@ main{flex:1;position:relative;overflow:hidden}
 .storm-legend .dscale{height:9px;border-radius:5px;
   background:linear-gradient(90deg,#22d3ee,#5d8cff,#a06bff,#ff5d8f,#ff3b3b)}
 .storm-legend .ends{display:flex;justify-content:space-between;margin-top:4px;color:var(--dim)}
+.train-tog{display:flex;flex-direction:column;gap:2px;margin-top:10px;padding-top:9px;
+  border-top:1px solid var(--line);cursor:pointer;color:var(--muted)}
+.train-tog input{accent-color:var(--cyan);margin-right:5px}
+.train-tog .thint{color:var(--dim);font-size:9px;margin-left:18px}
+.storm-alert{position:absolute;left:22px;top:128px;z-index:500;max-width:330px;display:none;
+  background:rgba(40,8,16,.72);border:1px solid rgba(255,59,59,.55);border-radius:12px;
+  padding:11px 14px;backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.storm-alert.on{display:block}
+.storm-alert .ah{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.14em;
+  color:#ff6b6b;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.storm-alert .ah::before{content:"";width:8px;height:8px;border-radius:50%;background:#ff3b3b;
+  box-shadow:0 0 8px #ff3b3b;animation:pulse 1.2s infinite}
+.storm-alert .lines{display:flex;flex-wrap:wrap;gap:5px}
+.bullet{width:21px;height:21px;border-radius:50%;display:grid;place-content:center;flex:none;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-weight:700;font-size:12px;color:#fff}
+@keyframes trainpulse{0%,100%{opacity:1}50%{opacity:.35}}
 .storm-ctrl{position:absolute;left:22px;right:22px;bottom:20px;z-index:500;display:flex;align-items:center;
   gap:14px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:12px 16px;
   backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(0,0,0,.55)}
@@ -378,12 +394,16 @@ main{flex:1;position:relative;overflow:hidden}
         <div class="storm-stats">
           <span><b id="s-active">0</b> sensors flooding</span>
           <span><b id="s-depth">0"</b> deepest now</span>
+          <span><b id="s-trains">0</b> trains running</span>
         </div>
       </div>
+      <div class="storm-alert" id="storm-alert"></div>
       <div class="storm-legend" id="storm-legend">
         <h4>FLOOD DEPTH</h4>
         <div class="dscale"></div>
         <div class="ends"><span>0"</span><span>12"</span><span>24"+</span></div>
+        <label class="train-tog"><input type="checkbox" id="trainTog" checked> Subway trains
+          <span class="thint">color = line · ⬤ pulsing = storm-affected</span></label>
       </div>
       <div class="storm-ctrl">
         <button class="play" id="splay" aria-label="play">▶</button>
@@ -426,7 +446,7 @@ const fmtNum = n => n.toLocaleString("en-US");
 
 // tab switching (+ hash deep-linking, e.g. #breakdown)
 const panels = {map:"p-map",breakdown:"p-breakdown",districts:"p-districts",storm:"p-storm"};
-let MAP=null, DMAP=null, dInit=false, DISTRICTS=null, SMAP=null, sInit=false, STORM=null;
+let MAP=null, DMAP=null, dInit=false, DISTRICTS=null, SMAP=null, sInit=false, STORM=null, TRAINS=null;
 function activate(p){
   if(!panels[p]) p="map";
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.p===p));
@@ -458,17 +478,18 @@ Promise.all([
   fetch("dashboard_data.json").then(r=>{if(!r.ok)throw 0;return r.json()}),
   fetch("district_data.json").then(r=>r.ok?r.json():null).catch(()=>null),
   fetch("storm_data.json").then(r=>r.ok?r.json():null).catch(()=>null),
-]).then(([data,dist,storm])=>init(data,dist,storm))
+  fetch("storm_trains.json").then(r=>r.ok?r.json():null).catch(()=>null),
+]).then(([data,dist,storm,trains])=>init(data,dist,storm,trains))
   .catch(()=>{document.getElementById("err").classList.add("show");
     document.getElementById("map-load").style.display="none";});
 
-function init(data,dist,storm){
+function init(data,dist,storm,trains){
   document.getElementById("snap").innerHTML =
     `<span class="pulse"></span><b>${data.meta.financial_plan}</b> · ${data.meta.n_points.toLocaleString()} projects · ${data.meta.snapshot}`;
   buildStats(data.headline);
   buildMap(data.points);
   buildBreakdown(data.breakdown);
-  DISTRICTS=dist; STORM=storm;
+  DISTRICTS=dist; STORM=storm; TRAINS=trains;
   activate(location.hash.slice(1)||"map");
 }
 
@@ -798,9 +819,10 @@ function buildStorm(S){
     return m;
   });
 
-  // timeline curve + rain
+  // timeline curve + rain + subway trains
   drawTimeline();
   initRain();
+  initTrains();
   window.addEventListener("resize",()=>{if(document.getElementById("p-storm").classList.contains("show"))drawTimeline();});
 
   document.getElementById("splay").addEventListener("click",togglePlay);
@@ -834,6 +856,7 @@ function renderStorm(){
   document.getElementById("sclock").textContent=fmtClock();
   document.getElementById("s-active").textContent=active;
   document.getElementById("s-depth").textContent=Math.round(maxd)+'"';
+  updateTrains();
   positionHead();
 }
 function updateRange(){document.getElementById("tlrange").value=Math.round(1000*sClock/sWindow);}
@@ -912,6 +935,72 @@ function rainTick(){
     ctx.beginPath(); ctx.moveTo(d.x,d.y); ctx.lineTo(d.x-wind,d.y+d.len); ctx.stroke();
     d.y+=d.sp*(0.55+intens); d.x-=wind*0.35;
     if(d.y>cv.height||d.x<-40*DPR) Object.assign(d,mkDrop(cv,false));
+  }
+}
+
+/* ---- subway trains (scheduled GTFS) + storm line-disruption flags ---- */
+let trainTrips=[], trainPool=[], trainLayer=null, trainsOn=true, trainBinw=1, lastAlertBin=-2;
+function textOn(hex){ // black text on light line bullets, white on dark
+  const n=parseInt(hex.slice(1),16), r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  return (0.299*r+0.587*g+0.114*b)>150 ? "#111" : "#fff";
+}
+function initTrains(){
+  if(!TRAINS){document.getElementById("trainTog").closest(".train-tog").style.display="none";return;}
+  trainBinw=TRAINS.meta.binw;
+  trainTrips=TRAINS.trips.map(t=>({r:t.r,c:t.c,p:t.p,t0:t.p[0][0],t1:t.p[t.p.length-1][0]}));
+  trainLayer=L.layerGroup().addTo(SMAP);
+  trainsOn=document.getElementById("trainTog").checked;
+  document.getElementById("trainTog").addEventListener("change",e=>{
+    trainsOn=e.target.checked;
+    if(!trainsOn){trainLayer.clearLayers(); trainPool=[];
+      document.getElementById("s-trains").textContent="0";
+      document.getElementById("storm-alert").classList.remove("on");}
+    else { lastAlertBin=-2; renderStorm(); }
+  });
+}
+function trainPos(tp,clk){
+  const p=tp.p;
+  for(let i=0;i<p.length-1;i++){
+    if(p[i][0]<=clk && clk<=p[i+1][0]){
+      const f=(clk-p[i][0])/((p[i+1][0]-p[i][0])||1);
+      return [p[i][1]+(p[i+1][1]-p[i][1])*f, p[i][2]+(p[i+1][2]-p[i][2])*f];
+    }
+  }
+  return [p[p.length-1][1],p[p.length-1][2]];
+}
+function updateTrains(){
+  if(!TRAINS||!trainsOn) return;
+  const bin=Math.min(TRAINS.disrupted.length-1,Math.max(0,Math.floor(sClock/trainBinw)));
+  const dis=new Set(TRAINS.disrupted[bin]);
+  let k=0;
+  for(const tp of trainTrips){
+    if(sClock<tp.t0||sClock>tp.t1) continue;
+    const [lat,lon]=trainPos(tp,sClock);
+    let m=trainPool[k];
+    if(!m){ m=L.circleMarker([lat,lon],{radius:3.2,weight:0,fillOpacity:.95}).addTo(trainLayer);
+            trainPool[k]=m; }
+    else m.setLatLng([lat,lon]);
+    const hit=dis.has(tp.r);
+    m.setStyle(hit
+      ? {fillColor:tp.c, color:"#ff3b3b", weight:2.2, opacity:1, fillOpacity:1, radius:5}
+      : {fillColor:tp.c, weight:0, fillOpacity:.95, radius:3.2});
+    k++;
+  }
+  // hide leftover pooled markers
+  for(let j=k;j<trainPool.length;j++) trainPool[j].setStyle({opacity:0,fillOpacity:0,radius:0});
+  document.getElementById("s-trains").textContent=k.toLocaleString();
+  // service-alert HUD (only refresh when the disrupted set changes)
+  if(bin!==lastAlertBin){
+    lastAlertBin=bin;
+    const el=document.getElementById("storm-alert");
+    const lines=TRAINS.disrupted[bin];
+    if(!lines.length){ el.classList.remove("on"); }
+    else{
+      el.classList.add("on");
+      el.innerHTML=`<div class="ah">Service alert · severe flooding near tracks</div>
+        <div class="lines">`+lines.map(l=>{const c=(TRAINS.route_colors[l]||"#888");
+          return `<span class="bullet" style="background:${c};color:${textOn(c)}">${l}</span>`;}).join("")+`</div>`;
+    }
   }
 }
 </script>

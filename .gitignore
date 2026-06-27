@@ -2,6 +2,8 @@
 # Raw NYC source CSVs and the large derived climate_budget_geolocated.csv live in data/.
 # Re-download the source CSVs and regenerate with the scripts in scripts/.
 *.csv
+# MTA static GTFS (auto-downloaded by build_storm_trains.py)
+*.zip
 
 # --- Python ---
 __pycache__/
