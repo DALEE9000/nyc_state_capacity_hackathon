@@ -52,11 +52,6 @@ header{display:flex;align-items:center;gap:18px;padding:18px 30px 14px}
 h1{font-size:21px;letter-spacing:.32em;margin:0;font-weight:700}
 .sub{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--cyan);
   letter-spacing:.18em;margin-top:3px;text-transform:uppercase}
-.winner{display:inline-flex;align-items:center;gap:6px;margin-top:8px;
-  font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.08em;color:var(--amber);
-  text-decoration:none;background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.4);
-  padding:4px 10px;border-radius:20px;transition:.18s}
-.winner:hover{background:rgba(255,209,102,.18);box-shadow:0 0 16px rgba(255,209,102,.28)}
 .hgrow{flex:1}
 .snap{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--dim);text-align:right;line-height:1.7}
 .snap b{color:var(--muted);font-weight:500}
@@ -334,7 +329,6 @@ main{flex:1;position:relative;overflow:hidden}
       <div>
         <h1>TIDELINE</h1>
         <div class="sub">NYC Flood-Resilience Capital Tracker</div>
-        <a class="winner" href="https://henrygrunzweig.substack.com/p/state-capacity-ai-hackathon-june" target="_blank" rel="noopener">🏆 Winner of the State Capacity and AI Hackathon</a>
       </div>
     </div>
     <div class="hgrow"></div>
@@ -483,12 +477,12 @@ main{flex:1;position:relative;overflow:hidden}
         <h2>1 · Data sources</h2>
         <p>All inputs are open datasets (NYC snapshot 2026-06-24; MTA static GTFS):</p>
         <ul class="src-list">
-          <li><b>Capital Projects Database (CPDB) — Points</b> — one geolocated point per capital project (geography).</li>
-          <li><b>NYC Climate Budgeting Report</b> (~260k rows) — every funding line with climate-alignment
+          <li><b><a href="https://data.cityofnewyork.us/d/h2ic-zdws" target="_blank" rel="noopener">Capital Projects Database (CPDB) — Points</a></b> — one geolocated point per capital project (geography).</li>
+          <li><b><a href="https://data.cityofnewyork.us/d/c99a-c5ux" target="_blank" rel="noopener">NYC Climate Budgeting Report</a></b> (~260k rows) — every funding line with climate-alignment
             ratings, tracking categories, vulnerability indices, fiscal year, and dollar amount (money + flood ratings).</li>
-          <li><b>Community Districts</b> — 71 district polygons.</li>
-          <li><b>FloodNet</b> — 453 street-flooding sensors + 2,448 measured flood events (depth, duration, per-event time series).</li>
-          <li><b>MTA Subway &amp; Bus GTFS (static)</b> — scheduled timetables, routes, shapes, and stops for the storm animation.</li>
+          <li><b><a href="https://data.cityofnewyork.us/d/5crt-au7u" target="_blank" rel="noopener">Community Districts</a></b> — 71 district polygons.</li>
+          <li><b>FloodNet</b> — 453 <a href="https://data.cityofnewyork.us/d/kb2e-tjy3" target="_blank" rel="noopener">street-flooding sensors</a> + 2,448 measured <a href="https://data.cityofnewyork.us/d/aq7i-eu5q" target="_blank" rel="noopener">flood events</a> (depth, duration, per-event time series).</li>
+          <li><b><a href="https://www.mta.info/developers" target="_blank" rel="noopener">MTA Subway &amp; Bus GTFS (static)</a></b> — scheduled timetables, routes, shapes, and stops for the storm animation.</li>
         </ul>
 
         <h2>2 · Connecting projects to spending</h2>
