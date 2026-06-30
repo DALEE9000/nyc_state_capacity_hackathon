@@ -61,6 +61,10 @@ h1{font-size:21px;letter-spacing:.32em;margin:0;font-weight:700}
 
 /* ---------- tabs ---------- */
 nav{display:flex;gap:6px;padding:0 30px;border-bottom:1px solid var(--line)}
+.backproj{margin-left:auto;align-self:center;font-family:"JetBrains Mono",monospace;font-size:11.5px;
+  letter-spacing:.06em;color:var(--muted);text-decoration:none;border:1px solid var(--line2);
+  border-radius:8px;padding:6px 12px;transition:.18s;white-space:nowrap}
+.backproj:hover{color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 14px rgba(34,211,238,.25)}
 .tab{appearance:none;border:0;background:none;color:var(--muted);cursor:pointer;
   font-family:"JetBrains Mono",monospace;font-size:12.5px;letter-spacing:.12em;
   padding:13px 20px;text-transform:uppercase;position:relative;transition:.2s}
@@ -341,6 +345,7 @@ main{flex:1;position:relative;overflow:hidden}
     <button class="tab" data-p="districts"><span class="n">03</span>Districts</button>
     <button class="tab" data-p="storm"><span class="n">04</span>May 20 Storm</button>
     <button class="tab" data-p="about"><span class="n">05</span>Methodology</button>
+    <a class="backproj" href="https://projects.thealphabetagency.com/">← Back to projects</a>
   </nav>
 
   <main>
