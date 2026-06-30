@@ -282,6 +282,35 @@ main{flex:1;position:relative;overflow:hidden}
   background:var(--cyan);box-shadow:0 0 10px var(--cyan);cursor:pointer}
 #tlrange::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--cyan)}
 
+/* ---------- methodology / about ---------- */
+.doc{max-width:860px;margin:0 auto;padding-bottom:50px}
+.doc .doclead{font-size:13px;letter-spacing:.2em;color:var(--cyan);font-family:"JetBrains Mono",monospace;
+  text-transform:uppercase;margin:0 0 6px}
+.doc h1{font-size:25px;font-weight:700;margin:0 0 14px;letter-spacing:-.3px}
+.doc h2{font-family:"JetBrains Mono",monospace;font-size:12.5px;letter-spacing:.16em;color:var(--cyan);
+  text-transform:uppercase;margin:36px 0 12px;padding-top:20px;border-top:1px solid var(--line)}
+.doc h3{font-size:16px;font-weight:600;margin:20px 0 7px;color:var(--txt)}
+.doc p{color:var(--muted);font-size:14.5px;line-height:1.7;margin:9px 0}
+.doc ul{margin:9px 0;padding-left:20px}
+.doc li{color:var(--muted);font-size:14.5px;line-height:1.65;margin:6px 0}
+.doc b,.doc strong{color:var(--txt);font-weight:600}
+.doc code{font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--cyan);
+  background:var(--panel-solid);border:1px solid var(--line);padding:1px 6px;border-radius:5px}
+.doc table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+.doc th,.doc td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);color:var(--muted)}
+.doc th{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--dim)}
+.doc td b{color:var(--txt)}
+.doc .caveat{background:linear-gradient(135deg,rgba(255,93,143,.1),rgba(34,211,238,.05));
+  border:1px solid rgba(255,93,143,.3);border-radius:14px;padding:16px 20px;margin:16px 0}
+.doc .caveat h2{border:0;padding:0;margin:0 0 8px;color:var(--vuln)}
+.doc .credits{background:var(--panel);border:1px dashed var(--line2);border-radius:14px;
+  padding:20px 22px;margin:14px 0;color:var(--muted)}
+.doc .credits .ph{color:var(--dim);font-style:italic;font-size:13.5px}
+.doc .src-list{font-size:13.5px}
+.doc a{color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(34,211,238,.3)}
+.doc a:hover{border-color:var(--cyan)}
+
 .err{position:absolute;inset:0;display:none;place-content:center;text-align:center;padding:40px}
 .err.show{display:grid}
 .err code{display:block;margin-top:14px;color:var(--cyan);font-family:"JetBrains Mono",monospace;
@@ -311,6 +340,7 @@ main{flex:1;position:relative;overflow:hidden}
     <button class="tab" data-p="breakdown"><span class="n">02</span>The Stakes</button>
     <button class="tab" data-p="districts"><span class="n">03</span>Districts</button>
     <button class="tab" data-p="storm"><span class="n">04</span>May 20 Storm</button>
+    <button class="tab" data-p="about"><span class="n">05</span>Methodology</button>
   </nav>
 
   <main>
@@ -434,6 +464,96 @@ main{flex:1;position:relative;overflow:hidden}
       <div class="loading" id="storm-load">LOADING STORM…</div>
     </section>
 
+    <!-- METHODOLOGY -->
+    <section class="panel" id="p-about">
+      <div class="doc">
+        <div class="doclead">Methodology &amp; Credits</div>
+        <h1>How TIDELINE was built</h1>
+        <p>TIDELINE connects <b>where New York floods</b> to <b>where the city commits its
+          flood-resilience capital dollars</b> — down to the community-district level — and replays a
+          real flash-flood. Everything below documents the data, the joins, and the judgment calls,
+          including where a number is a <b>measured fact</b> versus a <b>modeled estimate</b>.</p>
+
+        <h2>1 · Data sources</h2>
+        <p>All inputs are open datasets (NYC snapshot 2026-06-24; MTA static GTFS):</p>
+        <ul class="src-list">
+          <li><b>Capital Projects Database (CPDB) — Points</b> — one geolocated point per capital project (geography).</li>
+          <li><b>NYC Climate Budgeting Report</b> (~260k rows) — every funding line with climate-alignment
+            ratings, tracking categories, vulnerability indices, fiscal year, and dollar amount (money + flood ratings).</li>
+          <li><b>Community Districts</b> — 71 district polygons.</li>
+          <li><b>FloodNet</b> — 453 street-flooding sensors + 2,448 measured flood events (depth, duration, per-event time series).</li>
+          <li><b>MTA Subway &amp; Bus GTFS (static)</b> — scheduled timetables, routes, shapes, and stops for the storm animation.</li>
+        </ul>
+
+        <h2>2 · Connecting projects to spending</h2>
+        <p><b>Join.</b> CPDB <code>maprojid</code> (e.g. <code>039LQMTGRMS</code>) and the budget's
+          <code>Project Id</code> (e.g. <code>035 L21FREEZE</code>) are the same agency-prefixed code with a
+          stray space, so we join on a whitespace-stripped, uppercased key. This matches
+          <b>2,161 of 2,747</b> CPDB projects (the rest aren't tracked as climate investments).</p>
+        <p><b>One snapshot, to avoid double-counting.</b> The report contains three publication snapshots; the
+          same dollars appear in each. Every figure uses the single latest snapshot —
+          <b>FY2026 Executive Budget</b> (published 05/12/2026). Amounts are USD thousands, formatted to $M/$B.</p>
+        <p><b>Flood definitions</b> (from the budget's own ratings): a project is
+          <b>flood-aligned</b> if <code>Flood Resiliency ∈ {Aligned, Aligned Component}</code>;
+          <b>flood-vulnerable</b> if <code>Flood Vulnerability Index = true</code>; the category breakdown
+          sums spend by <code>Flood Resiliency Tracking Category</code>.</p>
+
+        <h2>3 · Flood funding vs. flood burden (Districts)</h2>
+        <p>This is the dashboard's headline equity claim, so it carries the most interpretation. The unit is the
+          <b>community district</b> (FloodNet's <code>CommunityBoard</code> and the districts' <code>BoroCd</code>
+          share the same borough-prefixed coding, so they join directly).</p>
+        <ul>
+          <li><b>Flooding burden</b> = count of measured FloodNet flood <b>events</b> per district (robust, intuitive). 52 of 71 districts have ≥1 event.</li>
+          <li><b>Flood funding</b> = flood-aligned $ assigned to each district by <b>point-in-polygon</b> (Shapely; multipoint projects use their centroid).</li>
+          <li><b>Adequacy gap</b> = <code>fund − need</code>, where each is normalized 0–1 against the citywide max. Negative ⇒ floods more than its funding share suggests.</li>
+        </ul>
+        <table>
+          <tr><th>Status</th><th>Rule</th><th>Meaning</th></tr>
+          <tr><td><b>Underfunded</b></td><td><code>gap &lt; −0.15</code></td><td>High flooding, comparatively low flood funding</td></tr>
+          <tr><td><b>Balanced</b></td><td><code>−0.15 … 0.15</code></td><td>Funding roughly tracks flooding</td></tr>
+          <tr><td><b>Well-funded</b></td><td><code>gap &gt; 0.15</code></td><td>Flood funding outweighs measured flooding</td></tr>
+          <tr><td><b>No data</b></td><td><code>0 events</code></td><td>No FloodNet-measured flooding to compare</td></tr>
+        </table>
+
+        <h2>4 · The May 20, 2026 storm</h2>
+        <p><b>Flooding (measured).</b> We replay every FloodNet event on 2026-05-20 — <b>105 events across 97
+          sensors</b>, peak depth <b>46 in</b>, up to <b>68 sensors flooding at once</b> (~23:35 GMT) — by
+          interpolating each sensor's depth time series along a storm clock. Rain density tracks the live intensity.</p>
+        <p><b>Subway &amp; bus movement (scheduled, not a live replay).</b> MTA real-time feeds are present-tense
+          only and the static GTFS calendar doesn't reach a past date, so we apply the <b>weekday timetable</b> to
+          that Wednesday and animate trains/buses along their <b>real routes and stops</b>: ~10,500 subway trips
+          (with route geometry) and ~11,000 bus trips (thinned from ~65k citywide for performance).</p>
+        <p><b>Disruption flags (a proximity heuristic).</b> A line is flagged when one of its stops sits within
+          ~300 m of a sensor flooding above <b>12 inches</b> (track-level) at that moment — 12 subway lines
+          (peak 8) and 33 bus routes (peak 26). It <b>flags</b> service near flooding; it does not alter movement
+          and is not a record of actual MTA service changes that night.</p>
+
+        <div class="caveat">
+          <h2>Read this before quoting the numbers</h2>
+          <p style="color:var(--txt)">Treat the equity finding as a <b>screening signal, not a verdict.</b>
+          FloodNet coverage is uneven, so event counts partly reflect <b>where sensors are</b>, not only where
+          flooding is worst. Funding is attributed by a project's mapped <b>point</b>, which may not be where its
+          benefit lands (a sewer or coastal barrier protects beyond its centroid). Normalization is relative to the
+          citywide max, and figures reflect a single budget snapshot. Transit motion and disruptions are
+          <b>scheduled/modeled</b>, not live recordings.</p>
+        </div>
+
+        <h2>5 · Credits</h2>
+        <div class="credits">
+          <p class="ph">Credits to be added.</p>
+          <!-- Fill in here, e.g.:
+          <ul>
+            <li><b>Built by</b> — Your name(s)</li>
+            <li><b>Design &amp; analysis</b> — …</li>
+            <li><b>Data</b> — NYC Open Data (CPDB, Climate Budgeting, Community Districts),
+                FloodNet, MTA (GTFS); basemap © OpenStreetMap, © CARTO</li>
+            <li><b>Acknowledgements</b> — …</li>
+          </ul>
+          -->
+        </div>
+      </div>
+    </section>
+
     <div class="err" id="err">
       <div>
         <div style="font-size:18px;font-weight:600">Couldn't load <b>dashboard_data.json</b></div>
@@ -462,7 +582,7 @@ const moneyUnit = (k)=>{ const d=k*1000;
 const fmtNum = n => n.toLocaleString("en-US");
 
 // tab switching (+ hash deep-linking, e.g. #breakdown)
-const panels = {map:"p-map",breakdown:"p-breakdown",districts:"p-districts",storm:"p-storm"};
+const panels = {map:"p-map",breakdown:"p-breakdown",districts:"p-districts",storm:"p-storm",about:"p-about"};
 let MAP=null, DMAP=null, dInit=false, DISTRICTS=null, SMAP=null, sInit=false, STORM=null, TRAINS=null, BUSES=null;
 function activate(p){
   if(!panels[p]) p="map";
