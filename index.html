@@ -52,6 +52,11 @@ header{display:flex;align-items:center;gap:18px;padding:18px 30px 14px}
 h1{font-size:21px;letter-spacing:.32em;margin:0;font-weight:700}
 .sub{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--cyan);
   letter-spacing:.18em;margin-top:3px;text-transform:uppercase}
+.winner{display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.08em;color:var(--amber);
+  text-decoration:none;background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.4);
+  padding:4px 10px;border-radius:20px;transition:.18s}
+.winner:hover{background:rgba(255,209,102,.18);box-shadow:0 0 16px rgba(255,209,102,.28)}
 .hgrow{flex:1}
 .snap{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--dim);text-align:right;line-height:1.7}
 .snap b{color:var(--muted);font-weight:500}
@@ -329,6 +334,7 @@ main{flex:1;position:relative;overflow:hidden}
       <div>
         <h1>TIDELINE</h1>
         <div class="sub">NYC Flood-Resilience Capital Tracker</div>
+        <a class="winner" href="https://henrygrunzweig.substack.com/p/state-capacity-ai-hackathon-june" target="_blank" rel="noopener">🏆 Winner of the State Capacity and AI Hackathon</a>
       </div>
     </div>
     <div class="hgrow"></div>
@@ -540,16 +546,14 @@ main{flex:1;position:relative;overflow:hidden}
 
         <h2>5 · Credits</h2>
         <div class="credits">
-          <p class="ph">Credits to be added.</p>
-          <!-- Fill in here, e.g.:
-          <ul>
-            <li><b>Built by</b> — Your name(s)</li>
-            <li><b>Design &amp; analysis</b> — …</li>
-            <li><b>Data</b> — NYC Open Data (CPDB, Climate Budgeting, Community Districts),
-                FloodNet, MTA (GTFS); basemap © OpenStreetMap, © CARTO</li>
-            <li><b>Acknowledgements</b> — …</li>
-          </ul>
-          -->
+          <p>This project was a combined effort between
+            <a href="https://www.linkedin.com/in/david-lee-5b7aa4143/" target="_blank" rel="noopener">David A. Lee</a>,
+            <a href="https://www.linkedin.com/in/dean-berkowitz/" target="_blank" rel="noopener">Dean Berkowitz</a>, and
+            <a href="https://www.linkedin.com/in/lyndsey-kaplan/" target="_blank" rel="noopener">Lyndsey Kaplan</a>
+            for the
+            <a href="https://henrygrunzweig.substack.com/p/state-capacity-ai-hackathon-june" target="_blank" rel="noopener">State Capacity and AI Hackathon</a>
+            hosted on June 24, 2026 at the CUNY Graduate Center. Many thanks to the organizers and judges for
+            their incredible work in orchestrating this wonderfully fun event!</p>
         </div>
       </div>
     </section>
